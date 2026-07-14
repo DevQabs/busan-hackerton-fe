@@ -1,0 +1,306 @@
+{
+  "period": {
+    "from": "2025-05-01",
+    "to": "2025-05-31"
+  },
+  "totals": {
+    "trips": 37512,
+    "completed": 32526,
+    "unassigned": 3520,
+    "cancelled": 1466,
+    "unassignedRate": 0.0938
+  },
+  "waitMinutes": {
+    "median": 42.5,
+    "p90": 87.3
+  },
+  "wheelchair": {
+    "manual": 19631,
+    "electric": 6837,
+    "none": 5240,
+    "unknown": 5804
+  },
+  "hourly": [
+    {
+      "hour": 0,
+      "requests": 65,
+      "unassigned": 4,
+      "cancelled": 3
+    },
+    {
+      "hour": 1,
+      "requests": 52,
+      "unassigned": 3,
+      "cancelled": 6
+    },
+    {
+      "hour": 2,
+      "requests": 29,
+      "unassigned": 0,
+      "cancelled": 3
+    },
+    {
+      "hour": 3,
+      "requests": 112,
+      "unassigned": 6,
+      "cancelled": 8
+    },
+    {
+      "hour": 4,
+      "requests": 91,
+      "unassigned": 17,
+      "cancelled": 3
+    },
+    {
+      "hour": 5,
+      "requests": 770,
+      "unassigned": 49,
+      "cancelled": 79
+    },
+    {
+      "hour": 6,
+      "requests": 828,
+      "unassigned": 81,
+      "cancelled": 43
+    },
+    {
+      "hour": 7,
+      "requests": 2709,
+      "unassigned": 297,
+      "cancelled": 108
+    },
+    {
+      "hour": 8,
+      "requests": 2792,
+      "unassigned": 248,
+      "cancelled": 92
+    },
+    {
+      "hour": 9,
+      "requests": 3365,
+      "unassigned": 232,
+      "cancelled": 133
+    },
+    {
+      "hour": 10,
+      "requests": 3581,
+      "unassigned": 193,
+      "cancelled": 102
+    },
+    {
+      "hour": 11,
+      "requests": 4795,
+      "unassigned": 520,
+      "cancelled": 113
+    },
+    {
+      "hour": 12,
+      "requests": 3105,
+      "unassigned": 373,
+      "cancelled": 89
+    },
+    {
+      "hour": 13,
+      "requests": 2348,
+      "unassigned": 212,
+      "cancelled": 95
+    },
+    {
+      "hour": 14,
+      "requests": 3327,
+      "unassigned": 141,
+      "cancelled": 132
+    },
+    {
+      "hour": 15,
+      "requests": 3866,
+      "unassigned": 244,
+      "cancelled": 140
+    },
+    {
+      "hour": 16,
+      "requests": 2368,
+      "unassigned": 315,
+      "cancelled": 127
+    },
+    {
+      "hour": 17,
+      "requests": 1128,
+      "unassigned": 225,
+      "cancelled": 58
+    },
+    {
+      "hour": 18,
+      "requests": 644,
+      "unassigned": 142,
+      "cancelled": 28
+    },
+    {
+      "hour": 19,
+      "requests": 652,
+      "unassigned": 89,
+      "cancelled": 29
+    },
+    {
+      "hour": 20,
+      "requests": 444,
+      "unassigned": 44,
+      "cancelled": 29
+    },
+    {
+      "hour": 21,
+      "requests": 219,
+      "unassigned": 58,
+      "cancelled": 23
+    },
+    {
+      "hour": 22,
+      "requests": 133,
+      "unassigned": 22,
+      "cancelled": 13
+    },
+    {
+      "hour": 23,
+      "requests": 89,
+      "unassigned": 5,
+      "cancelled": 10
+    }
+  ],
+  "byDow": [
+    {
+      "dow": 0,
+      "label": "월",
+      "requests": 5354
+    },
+    {
+      "dow": 1,
+      "label": "화",
+      "requests": 5284
+    },
+    {
+      "dow": 2,
+      "label": "수",
+      "requests": 6024
+    },
+    {
+      "dow": 3,
+      "label": "목",
+      "requests": 6809
+    },
+    {
+      "dow": 4,
+      "label": "금",
+      "requests": 7298
+    },
+    {
+      "dow": 5,
+      "label": "토",
+      "requests": 3796
+    },
+    {
+      "dow": 6,
+      "label": "일",
+      "requests": 2947
+    }
+  ],
+  "purpose": [
+    {
+      "name": "기타",
+      "count": 21358
+    },
+    {
+      "name": "병원",
+      "count": 6351
+    },
+    {
+      "name": "귀가",
+      "count": 4648
+    },
+    {
+      "name": "여가",
+      "count": 3563
+    },
+    {
+      "name": "단체/복지관",
+      "count": 734
+    },
+    {
+      "name": "출퇴근",
+      "count": 581
+    },
+    {
+      "name": "통학",
+      "count": 116
+    },
+    {
+      "name": "쇼핑",
+      "count": 114
+    },
+    {
+      "name": "친구/친지",
+      "count": 47
+    }
+  ],
+  "topDestDongs": [
+    {
+      "dong": "사상구 학장동",
+      "count": 1095
+    },
+    {
+      "dong": "북구 금곡동",
+      "count": 692
+    },
+    {
+      "dong": "영도구 동삼1동",
+      "count": 688
+    },
+    {
+      "dong": "부산진구 양정2동",
+      "count": 611
+    },
+    {
+      "dong": "사상구 주례2동",
+      "count": 567
+    },
+    {
+      "dong": "해운대구 좌4동",
+      "count": 513
+    },
+    {
+      "dong": "사상구 모라3동",
+      "count": 499
+    },
+    {
+      "dong": "연제구 거제2동",
+      "count": 455
+    },
+    {
+      "dong": "영도구 동삼3동",
+      "count": 397
+    },
+    {
+      "dong": "사상구 감전동",
+      "count": 395
+    },
+    {
+      "dong": "서구 아미동",
+      "count": 395
+    },
+    {
+      "dong": "금정구 구서2동",
+      "count": 371
+    },
+    {
+      "dong": "동래구 온천3동",
+      "count": 370
+    },
+    {
+      "dong": "해운대구 중1동",
+      "count": 365
+    },
+    {
+      "dong": "동래구 명륜동",
+      "count": 361
+    }
+  ]
+}

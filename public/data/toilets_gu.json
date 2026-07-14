@@ -1,0 +1,82 @@
+[
+  {
+    "gu": "부산진구",
+    "total": 250,
+    "accessible": 124
+  },
+  {
+    "gu": "남구",
+    "total": 243,
+    "accessible": 102
+  },
+  {
+    "gu": "강서구",
+    "total": 235,
+    "accessible": 94
+  },
+  {
+    "gu": "해운대구",
+    "total": 230,
+    "accessible": 73
+  },
+  {
+    "gu": "기장군",
+    "total": 212,
+    "accessible": 111
+  },
+  {
+    "gu": "사하구",
+    "total": 210,
+    "accessible": 89
+  },
+  {
+    "gu": "북구",
+    "total": 169,
+    "accessible": 110
+  },
+  {
+    "gu": "영도구",
+    "total": 166,
+    "accessible": 83
+  },
+  {
+    "gu": "연제구",
+    "total": 115,
+    "accessible": 48
+  },
+  {
+    "gu": "사상구",
+    "total": 110,
+    "accessible": 58
+  },
+  {
+    "gu": "동래구",
+    "total": 108,
+    "accessible": 71
+  },
+  {
+    "gu": "수영구",
+    "total": 103,
+    "accessible": 44
+  },
+  {
+    "gu": "동구",
+    "total": 96,
+    "accessible": 51
+  },
+  {
+    "gu": "중구",
+    "total": 94,
+    "accessible": 48
+  },
+  {
+    "gu": "서구",
+    "total": 88,
+    "accessible": 52
+  },
+  {
+    "gu": "금정구",
+    "total": 57,
+    "accessible": 23
+  }
+]

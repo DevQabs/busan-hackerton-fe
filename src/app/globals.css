@@ -1,26 +1,69 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b0f1a;
+  --panel: #121826;
+  --line: #232b3d;
+  --ink: #e2e8f0;
+  --ink-dim: #8b96ab;
+  --accent: #22d3ee;
+  --demand: #38bdf8;
+  --unmet: #fb7185;
+  --infra: #34d399;
+  --warn: #fbbf24;
 }
 
+/* Expose palette as Tailwind v4 tokens: bg-panel, border-line, text-dim, ... */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-dim: var(--ink-dim);
+  --color-accent: var(--accent);
+  --color-demand: var(--demand);
+  --color-unmet: var(--unmet);
+  --color-infra: var(--infra);
+  --color-warn: var(--warn);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family:
+    "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR",
+    "Malgun Gothic", system-ui, sans-serif;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* KPI / table numbers align in columns */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Slim scrollbars for the side panels */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Range inputs pick up the accent color */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+
+/* deck.gl default tooltip container — neutralize, we style via getTooltip */
+.deck-tooltip {
+  z-index: 30;
 }
