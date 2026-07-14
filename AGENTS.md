@@ -31,11 +31,11 @@ raw CSVs/xlsx/SHP/zip  →  pipeline/build_all.py  →  public/data/*.json  → 
 | `pipeline/` + `public/data/` | data scientist / backend | Pure stdlib Python 3 (pandas/openpyxl are NOT installed). After ANY change: `python3 pipeline/build_all.py && python3 pipeline/validate.py` must pass. |
 | `app/`, `components/`, `lib/` (except types.ts) | frontend | Strict TS: `npx tsc --noEmit` and `npm run build` must pass. UI text is Korean. |
 | `lib/types.ts`, `AGENTS.md` | shared | Change = cross-team decision. |
-| `public/data/model_results.json` | data scientist | The ONE artifact meant to be replaced by hand/notebook output at the finals (schema: `ModelResult[]` in types.ts; set `status: "final"`). |
+| `public/data/model_results.json` | data scientist | The ONE artifact meant to be replaced by hand/notebook output at the finals (schema: `ModelResult[]` in types.ts; currently `status: "rehearsal"`, set `status: "final"`). |
 
-## Methodology — what is real vs placeholder
+## Methodology — real vs rehearsal vs heuristic
 
-Currently REAL (computed from May 2025 public 두리발 data, citywide):
+REAL (computed from May 2025 public 두리발 data, citywide):
 - Trip categories (disjoint, sum = 37,512): completed 32,526 (`결과=하차`),
   unassigned 3,520 (`결과=미배차`), cancelled 1,466 (`상태` 취소-family).
 - Wait = 접수→승차 minutes, completed trips only, 0–24h window
@@ -45,11 +45,24 @@ Currently REAL (computed from May 2025 public 두리발 data, citywide):
   가야1동↔가야제1동 and 일광면→일광읍), shops by 행정동코드 8-digit == adm_cd2[:8],
   POIs by point-in-polygon.
 
-PLACEHOLDER (to be replaced by the DS at the finals — see team stat guide):
+REHEARSAL (real statistics fit on the May data by `build_all.py`; numbers are
+genuine but the NB exposure is a proxy — `model_results.json` has
+`status: "rehearsal"`, formulas in `pipeline/README.md`):
+- Kaplan-Meier wait analysis (`wait_km.json`): event = 배차, no-배차 requests
+  censored at 취소시간; KM median 20.1 vs naive 17.9; censoredShare 0.095.
+- NB regression (`dongs.expectedDropoffs`/`suppressedZ`): dropoffs with
+  offset = log(상가수+1); IRR chargers 1.223 [1.100, 1.360]. Finals: swap the
+  offset to log(장애인등록 인구).
+- Day-cluster bootstrap (`dongs.gapCI`/`pTop5`): resamples the 31 DAYS (not
+  rows), B=500, infra fixed — 90% CI of gapScore + P(top-5) per dong.
+- Welch t (log wait, 수동 vs 전동) and chi-square (미배차 × 4 time bands).
+- Arrival deserts (`arrival_deserts.json`): 250m dropoff grid scored by infra
+  shortage + 400m greedy coverage picks; `ghosts.json`: unserved-request
+  points (~100m rounding).
+
+HEURISTIC (kept deliberately, uncertainty quantified by the bootstrap):
 - `gapScore = z(dropoffs) − infraZ + 0.5·z(unassigned)` where
   `infraZ = mean(z(chargers), z(hospitals+pharmacies), z(welfare), z(floor1-weighted shops))`.
-  Target replacement: Negative Binomial regression
-  `하차건수 ~ 인프라지수 + log(상가수) + log(장애인구)`, report IRR with 95% CI.
 - `gapClass`: H = top tercile. HL (high demand, low infra) = priority = red.
 - The "충전소 +1" simulation in the UI recomputes gapScore client-side with an
   embedded sigma — an explicitly labeled approximation.
@@ -88,7 +101,9 @@ npm start -- -p 3300                                            # smoke: all 9 s
 ```
 
 `pipeline/validate.py` checks: JSON parses, bbox 34.9–35.5 / 128.7–129.5,
-206 dong features with all DongProps, category sums, artifact size caps.
+206 dong features with all DongProps (incl. suppressedZ/gapCI/pTop5), category
+sums, artifact size caps, KM curve monotonicity + censoredShare consistency,
+desert rank/greedy ordering, ghost count vs totals, NB IRR CI ordering.
 
 ## Known issues (accepted, do not "fix" silently)
 
@@ -97,8 +112,13 @@ npm start -- -p 3300                                            # smoke: all 9 s
   normal internet before the demo.
 - 4 welfare POIs sit outside every dong polygon (coastline) — kept in
   `infra_points.json` without `dong`, excluded from per-dong counts.
-- 1 미배차 row lacks pickup coords → unmet cells sum to 3,519 (stats.json
-  keeps the true 3,520). 5 toilet rows have unparseable 구.
+- 1 미배차 row lacks pickup coords → unmet cells sum to 3,519 and ghosts.json
+  has 4,985 of 4,986 points (stats.json keeps the true 3,520). 5 toilet rows
+  have unparseable 구.
+- wait_km.json: km.median (20.1) is computed on the full-resolution KM curve;
+  the published downsampled curve first crosses S=0.5 at t=24.3 — expected,
+  not a bug. censoredShare 0.095 < 0.133 because 1,427 cancelled trips DID get
+  배차 and count as events.
 - `useData` re-polls missing artifacts every 8s by design (lets the pipeline
   write files while the UI is running).
 
@@ -109,8 +129,13 @@ lib/types.ts            ← data contract (READ FIRST)
 pipeline/build_all.py   ← all artifact generation; input paths at top
 pipeline/common.py      ← xlsx/DBF/point-in-polygon/z-score helpers (stdlib)
 pipeline/validate.py    ← contract + sanity checks (exit 1 on failure)
-pipeline/match_report.txt ← generated join-rate report
-public/data/            ← generated artifacts (9 files) + busan_dongs_raw.geojson
+pipeline/match_report.txt ← generated join-rate + model-fit report
+public/data/            ← 12 generated artifacts + busan_dongs_raw.geojson
+  ├ stats/dongs/od/trips_anim/unmet/infra_points/toilets_gu/elevators  (original 8)
+  ├ wait_km.json        ← KM survival wait analysis + queue/fleet
+  ├ ghosts.json         ← unserved-request points (미배차/취소)
+  ├ arrival_deserts.json← 250m dropoff grid scoring + greedy picks
+  └ model_results.json  ← 4 rehearsal fits (NB / Welch t / χ² / bootstrap)
 app/page.tsx            ← entry (ssr:false dynamic)
 components/Dashboard.tsx← shell: sidebar / map / right panel
 components/MapCanvas.tsx← maplibre + deck.gl MapboxOverlay + offline fallback

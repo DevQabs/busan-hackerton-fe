@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Map, NavigationControl, useControl } from "react-map-gl/maplibre";
+import { useEffect, useRef, useState } from "react";
+import { Map, NavigationControl, useControl, type MapRef } from "react-map-gl/maplibre";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { MapboxOverlayProps } from "@deck.gl/mapbox";
 import DeckGL from "@deck.gl/react";
+import { FlyToInterpolator } from "@deck.gl/core";
 import type { MapSpec } from "@/lib/mapspec";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -33,12 +34,33 @@ export function MapCanvas({ spec }: { spec: MapSpec }) {
   // DeckGL canvas on the dark background — all data layers keep working.
   const [basemapOk, setBasemapOk] = useState(true);
   const styleLoadedRef = useRef(false);
+  const mapRef = useRef<MapRef>(null);
+
+  // Scene-requested camera flight (e.g. desert-cell row click).
+  useEffect(() => {
+    if (!spec.flyTo) return;
+    mapRef.current?.flyTo({
+      center: [spec.flyTo.longitude, spec.flyTo.latitude],
+      zoom: spec.flyTo.zoom,
+      duration: 1100,
+    });
+  }, [spec.flyTo]);
 
   if (!basemapOk) {
+    // deck.gl resets the camera whenever initialViewState identity changes,
+    // so the offline fallback honors flyTo requests too.
+    const view = spec.flyTo
+      ? {
+          ...INITIAL_VIEW,
+          ...spec.flyTo,
+          transitionDuration: 1100,
+          transitionInterpolator: new FlyToInterpolator(),
+        }
+      : INITIAL_VIEW;
     return (
       <div className="absolute inset-0" style={{ background: "var(--bg)" }}>
         <DeckGL
-          initialViewState={INITIAL_VIEW}
+          initialViewState={view}
           controller={true}
           layers={spec.layers}
           getTooltip={spec.getTooltip}
@@ -52,6 +74,7 @@ export function MapCanvas({ spec }: { spec: MapSpec }) {
 
   return (
     <Map
+      ref={mapRef}
       initialViewState={INITIAL_VIEW}
       mapStyle={BASEMAP_STYLE}
       style={{ position: "absolute", inset: 0, background: "var(--bg)" }}

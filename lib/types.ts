@@ -55,6 +55,16 @@ export interface DongProps {
   infraZ: number;
   gapScore: number;    // z(demand) − z(infra) + 0.5·z(unmet); higher = worse
   gapClass: "HH" | "HL" | "LH" | "LL"; // demand×infra terciles; HL = 사각지대 (priority)
+  // --- statistical enrichment (rehearsal on May citywide data; refit at finals) ---
+  /** NB-model expected dropoffs given exposure + infra (null if model skipped) */
+  expectedDropoffs: number | null;
+  /** standardized deviance residual of the NB fit; strongly NEGATIVE = far fewer
+   *  trips than expected = 잠재수요/침묵 의심 지역 (suppressed demand candidate) */
+  suppressedZ: number | null;
+  /** day-cluster bootstrap 90% CI of gapScore, [lo, hi] */
+  gapCI: [number, number] | null;
+  /** bootstrap probability this dong ranks in the top-5 by gapScore, 0..1 */
+  pTop5: number | null;
 }
 
 /** public/data/od.json — aggregated origin→destination flows between dong centroids. */
@@ -77,12 +87,66 @@ export interface AnimTrip {
   w: 0 | 1 | 2;
 }
 
-/** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
-export interface UnmetCell {
-  lng: number; // cell center, rounded 3 decimals
+/** public/data/ghosts.json — the "보이지 않는 승객" layer: requests that never
+ *  became trips. Pickup-side points at request time-of-day, coords rounded to
+ *  3 decimals (~110 m) for privacy. */
+export interface GhostPoint {
+  p: [number, number]; // [lng, lat], rounded 3 decimals
+  t: number;           // seconds since midnight of 접수시간
+  kind: "unassigned" | "cancelled"; // 미배차 | 취소
+}
+
+/** public/data/wait_km.json — waiting-time forensics (survival analysis).
+ *  Event = vehicle assigned (배차). 미배차/취소 without 배차 are CENSORED at
+ *  their cancel time — the naive median silently drops them. */
+export interface WaitKm {
+  /** assigned-only percentiles — the "official-style" metric (survivor-biased) */
+  naive: { median: number; p90: number };
+  /** Kaplan-Meier estimates including censored requests; null if S(t) never crosses */
+  km: { median: number | null; p90: number | null };
+  censoredShare: number; // share of requests treated as censored, 0..1
+  /** survival curves S(t): [minutes, S]; labels like 전체 / 수동휠체어 / 전동휠체어 */
+  curves: { label: string; points: [number, number][] }[];
+  /** queue decomposition per request-hour: 접수→배차 vs 배차→승차 */
+  queue: {
+    hour: number;
+    requests: number;
+    unassignedRate: number;         // 0..1
+    p50Assign: number | null;       // minutes 접수→배차
+    p90Assign: number | null;
+    p50Board: number | null;        // minutes 배차→승차
+    p90Board: number | null;
+  }[];
+  /** fleet occupancy per hour-of-day: vehicles with an active 배차→하차 interval */
+  fleet: { hour: number; avgActive: number; maxActive: number }[];
+}
+
+/** public/data/arrival_deserts.json — door-level scoring of dropoff hotspots
+ *  against nearby infrastructure ("도착지 사각지대"), plus a greedy
+ *  maximal-coverage suggestion of next-K facility locations. */
+export interface DesertCell {
+  lng: number;  // cell center (grid ~250 m), rounded
   lat: number;
-  unassigned: number; // 미배차 requests in this cell (pickup side)
-  cancelled: number;
+  dropoffs: number; // completed dropoffs in the cell (period total)
+  /** haversine meters to the nearest facility; null if none within 2 km */
+  nearestM: { charger: number | null; hospital: number | null; welfare: number | null };
+  /** Korean shortage badges, e.g. "충전소 800m 밖", "1층 상가 비율 낮음" */
+  lack: string[];
+  score: number; // dropoffs × weighted shortage; higher = worse
+  rank: number;  // 1 = worst
+  dong?: string; // containing 행정동 (short name) when resolvable
+}
+export interface DesertGreedyPick {
+  lng: number;
+  lat: number;
+  gain: number;       // newly covered dropoffs by this pick
+  cumCovered: number; // cumulative covered dropoffs
+  cumShare: number;   // cumulative share of all desert dropoffs, 0..1
+}
+export interface ArrivalDeserts {
+  params: { cellM: number; radiusM: number; note: string }; // note: methodology one-liner (Korean)
+  cells: DesertCell[];   // ranked, worst first (cap ~200)
+  greedy: DesertGreedyPick[]; // K sequential picks (K ~10)
 }
 
 /** public/data/infra_points.json — infrastructure POI layer. */
@@ -112,15 +176,18 @@ export interface StationLift {
   firstYear: number | null; // earliest 설치년도
 }
 
-/** public/data/model_results.json — filled by the data scientist at the finals.
- *  The UI renders these cards as-is; status drives the badge. */
+/** public/data/model_results.json — statistical model outputs.
+ *  status: "placeholder" (not yet run) | "rehearsal" (fit on May citywide
+ *  public data — numbers are real but the exposure is a proxy) | "final"
+ *  (fit on the finals dataset by the data scientist). */
 export interface ModelResult {
-  id: string;               // "nb-regression" | "welch-t" | "chi2" | "decision-tree" | ...
+  id: string;               // "nb-regression" | "welch-t" | "chi-square" | "bootstrap-stability" | ...
   name: string;             // display name (Korean)
-  status: "placeholder" | "final";
+  status: "placeholder" | "rehearsal" | "final";
   headline: string;         // one-line result, e.g. "인프라 지수 +1단위 → 방문 +18% (IRR 1.18)"
-  detail: string;           // interpretation paragraph
+  detail: string;           // interpretation paragraph (Korean, plain factual tone)
   numbers?: Record<string, number | string>; // coefficients, p-values, CI bounds
+  caveats?: string;         // limitations the presenter must say out loud (Korean)
 }
 
 /** Convenience: all artifact paths in one place. */
@@ -129,9 +196,20 @@ export const DATA = {
   dongs: "/data/dongs.geojson",
   od: "/data/od.json",
   tripsAnim: "/data/trips_anim.json",
+  ghosts: "/data/ghosts.json",
+  waitKm: "/data/wait_km.json",
+  arrivalDeserts: "/data/arrival_deserts.json",
   unmet: "/data/unmet.json",
   infraPoints: "/data/infra_points.json",
   toiletsGu: "/data/toilets_gu.json",
   elevators: "/data/elevators.json",
   modelResults: "/data/model_results.json",
 } as const;
+
+/** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
+export interface UnmetCell {
+  lng: number; // cell center, rounded 3 decimals
+  lat: number;
+  unassigned: number; // 미배차 requests in this cell (pickup side)
+  cancelled: number;
+}

@@ -1,0 +1,45 @@
+=== trips ===
+origin: matched 37,194 | busan-unmatched 0 | outside-busan(관외) 318 | empty 0 | busan match rate 100.00% | overall 99.15%
+dest: matched 36,025 | busan-unmatched 0 | outside-busan(관외) 1,487 | empty 0 | busan match rate 100.00% | overall 96.04%
+totals: {'trips': 37512, 'completed': 32526, 'unassigned': 3520, 'cancelled': 1466, 'unassignedRate': 0.0938}
+wrote stats.json: 4,945 bytes
+=== infra ===
+chargers 202 | hospitals 5615 | pharmacies 1733 | welfare 223 (excluded outliers/invalid: 5)
+infra points outside all dong polygons: {'welfare': 4}
+wrote infra_points.json: 964,313 bytes
+=== shops ===
+shops rows 155,103 | joined to dongs 155,103 (100.00%)
+=== nb regression ===
+  intercept: IRR 0.1723 [0.0815, 0.3642] p=4.12e-06
+  chargers: IRR 1.2229 [1.0996, 1.3601] p=2.08e-04
+  medical: IRR 0.9914 [0.9881, 0.9946] p=2.71e-07
+  welfare: IRR 1.1432 [1.0537, 1.2405] p=1.30e-03
+  floor1Share: IRR 2.0129 [0.6772, 5.9835] p=2.08e-01
+  alpha (overdispersion) = 0.5824, n = 206
+=== bootstrap ===
+  B=500, day clusters=31
+wrote dongs.geojson: 596,262 bytes
+od pairs (count>=5, cap 400): 400
+wrote od.json: 49,386 bytes
+anim candidates: 32,358
+wrote trips_anim.json: 834,306 bytes
+unmet cells: 1,724 (unassigned 3,519, cancelled 1,466)
+wrote unmet.json: 99,681 bytes
+toilets: 2,486 across 16 gu (unparsed addresses: 5)
+wrote toilets_gu.json: 1,129 bytes
+elevator stations: 118 (EV 445, ES 659)
+wrote elevators.json: 10,148 bytes
+=== wait km ===
+  events+censored: 37,512 | dropped: {'board_negative': 7} | fleet rows skipped (span<=0 or >24h): 1
+  naive median/p90: 17.9/61.0 min | KM median/p90: 20.1/62.7 min | censoredShare: 0.095
+wrote wait_km.json: 5,748 bytes
+ghost points: 4,985 ({'cancelled': 1466, 'unassigned': 3519})
+wrote ghosts.json: 261,627 bytes
+=== arrival deserts ===
+  cells >= 20 dropoffs with score>0: 295 (kept 200) | greedy picks: 10
+  greedy cumShare: [0.039, 0.077, 0.113, 0.145, 0.173, 0.196, 0.219, 0.241, 0.262, 0.283]
+wrote arrival_deserts.json: 39,533 bytes
+  welch-t: t=5.63 df=10475 p=1.80e-08 d=0.085
+  chi-square: chi2=334.6 p=3.17e-72 V=0.094 worst band 16-24시 adj=18.1 rate=0.159
+  bootstrap top-1: 사상구 학장동 pTop5=1.0 gapCI=[8.74, 9.98]
+wrote model_results.json: 4,161 bytes

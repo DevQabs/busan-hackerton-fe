@@ -2,9 +2,18 @@
 
 import type { DeckProps, Layer } from "@deck.gl/core";
 
+/** Camera request a scene can attach to its spec (e.g. "fly to this cell").
+ *  A NEW object identity triggers the flight, so repeat clicks re-fly. */
+export interface FlyTo {
+  longitude: number;
+  latitude: number;
+  zoom: number;
+}
+
 export interface MapSpec {
   layers: Layer[];
   getTooltip?: DeckProps["getTooltip"];
+  flyTo?: FlyTo | null;
 }
 
 export const EMPTY_SPEC: MapSpec = { layers: [] };

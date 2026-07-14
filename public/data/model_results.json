@@ -1,30 +1,84 @@
 [
   {
     "id": "nb-regression",
-    "name": "음이항 회귀 — 인프라 지수와 이동수요",
-    "status": "placeholder",
-    "headline": "분석 대기 — 본선 데이터 필요",
-    "detail": "행정동별 두리발 하차 건수를 종속변수로, 인프라 지수(충전기·의료기관·복지시설·1층 상가)를 설명변수로 하는 음이항 회귀. 본선에서 계수(IRR)와 신뢰구간을 채운다."
+    "name": "음이항 회귀 — 인프라와 하차 수요 (리허설)",
+    "status": "rehearsal",
+    "headline": "충전소 +1기당 하차 건수 ×1.223 (95% CI 1.100–1.360)",
+    "detail": "행정동별(206개) 하차 건수를 상가수+1 노출 대비 비율로 모델링했다(offset=log(상가수+1)). 계수는 노출 대비 하차율의 배수(IRR)로 해석한다. 과산포 보정 alpha=0.582를 적용한 음이항 가중 재적합 결과다. 편차 잔차가 크게 음수인 동은 노출 대비 이용이 비정상적으로 적은 잠재수요 의심 지역(suppressedZ)으로 지도에 표시된다.",
+    "numbers": {
+      "n": 206,
+      "alpha": 0.5824,
+      "irr_intercept": 0.1723,
+      "irr_intercept_lo": 0.0815,
+      "irr_intercept_hi": 0.3642,
+      "p_intercept": "<0.0001",
+      "irr_chargers": 1.2229,
+      "irr_chargers_lo": 1.0996,
+      "irr_chargers_hi": 1.3601,
+      "p_chargers": 0.0002,
+      "irr_medical": 0.9914,
+      "irr_medical_lo": 0.9881,
+      "irr_medical_hi": 0.9946,
+      "p_medical": "<0.0001",
+      "irr_welfare": 1.1432,
+      "irr_welfare_lo": 1.0537,
+      "irr_welfare_hi": 1.2405,
+      "p_welfare": 0.0013,
+      "irr_floor1Share": 2.0129,
+      "irr_floor1Share_lo": 0.6772,
+      "irr_floor1Share_hi": 5.9835,
+      "p_floor1Share": 0.2082
+    },
+    "caveats": "연관성 추정이며 인과가 아님. 노출변수는 리허설 프록시(상가수+1) — 본선에서 장애인등록 인구로 교체."
   },
   {
     "id": "welch-t",
-    "name": "Welch t-검정 — 사각지대 vs 비사각지대 대기시간",
-    "status": "placeholder",
-    "headline": "분석 대기 — 본선 데이터 필요",
-    "detail": "gapClass HL(고수요·저인프라) 행정동과 나머지 행정동의 접수→승차 대기시간 평균 차이를 Welch t-검정으로 비교한다."
+    "name": "Welch t — 수동 vs 전동 휠체어 배차 대기 (로그 척도)",
+    "status": "rehearsal",
+    "headline": "수동·전동 로그 대기 평균 차 +0.131 (t=5.63, p=<0.0001, d=0.085)",
+    "detail": "배차 성공 건의 접수→배차 대기시간(분)을 로그 변환해 수동휠체어(n=18,221)와 전동휠체어(n=6,322)를 Welch t-검정으로 비교했다. Welch–Satterthwaite 자유도 10475. 로그 척도 차이 +0.131은 대기시간 비율 ×1.140에 해당한다.",
+    "numbers": {
+      "t": 5.63,
+      "df": 10475.0,
+      "p": "<0.0001",
+      "cohen_d_log": 0.085,
+      "n_manual": 18221,
+      "n_electric": 6322,
+      "ratio": 1.14
+    },
+    "caveats": "배차 성공 건만 포함(미배차 제외). 자유도가 충분히 커서 정규 근사 p값을 사용. 효과 크기는 로그 척도 기준."
   },
   {
-    "id": "chi2",
-    "name": "카이제곱 검정 — 휠체어 유형과 미배차",
-    "status": "placeholder",
-    "headline": "분석 대기 — 본선 데이터 필요",
-    "detail": "휠체어 유형(수동/전동/없음)과 배차 결과(하차/미배차/취소)의 독립성을 카이제곱 검정으로 확인한다."
+    "id": "chi-square",
+    "name": "카이제곱 — 미배차 여부와 접수 시간대",
+    "status": "rehearsal",
+    "headline": "16-24시 접수의 미배차율 15.9% — 전체 평균 9.4% 대비 편중 (χ²=335, p=<0.0001)",
+    "detail": "접수 시간대 4구간(00-06/06-11/11-16/16-24시)과 미배차 여부의 독립성을 검정했다. χ²=334.6, df=3, Cramér's V=0.094. 조정 표준화 잔차가 가장 큰 칸은 16-24시 미배차(잔차 +18.1)다.",
+    "numbers": {
+      "chi2": 334.6,
+      "df": 3,
+      "p": "<0.0001",
+      "cramers_v": 0.094,
+      "worst_band": "16-24시",
+      "worst_band_rate": 0.159,
+      "worst_adj_residual": 18.1
+    },
+    "caveats": "시간대 구간은 사전 정의된 4구간. 효과 크기(Cramér's V)가 작으면 통계적 유의성만으로 실무적 의미를 주장하지 않는다."
   },
   {
-    "id": "decision-tree",
-    "name": "의사결정나무 — 미배차 위험 요인",
-    "status": "placeholder",
-    "headline": "분석 대기 — 본선 데이터 필요",
-    "detail": "접수 시각대, 요일, 출발 행정동, 휠체어 유형을 입력으로 미배차 여부를 분류하는 의사결정나무. 본선에서 주요 분기 규칙과 정확도를 채운다."
+    "id": "bootstrap-stability",
+    "name": "부트스트랩 — 우선순위 순위 안정성",
+    "status": "rehearsal",
+    "headline": "gapScore 1위 사상구 학장동 — P(상위5)=1.000, 90% CI [8.74, 9.98]",
+    "detail": "5월 31일을 일 단위 클러스터로 B=500회 재표집해 행정동별 gapScore와 순위를 재계산했다(인프라 고정, 수요·미배차만 재표집). 각 동의 gapScore 90% 신뢰구간(gapCI)과 상위 5위 진입 확률(pTop5)을 dongs.geojson에 기록했다.",
+    "numbers": {
+      "B": 500,
+      "clusters": 31,
+      "top1_dong": "사상구 학장동",
+      "top1_pTop5": 1.0,
+      "top1_gapCI_lo": 8.74,
+      "top1_gapCI_hi": 9.98
+    },
+    "caveats": "리허설 데이터(5월 시 전역) 기준. 계절성·월간 변동은 반영되지 않으며 본선 데이터 기간에 맞춰 클러스터 단위를 재검토한다."
   }
 ]

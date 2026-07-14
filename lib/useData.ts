@@ -51,6 +51,16 @@ function getEntry(url: string): Entry {
   return entry;
 }
 
+/** Refetch every cached artifact (본선 재적재 버튼). Old data stays on screen
+ *  until the new response lands (stale-while-revalidate), so a refresh never
+ *  flashes "데이터 준비 중" for panels that already had data. */
+export function refreshAll() {
+  cache.forEach((entry, url) => {
+    if (entry.timer) window.clearTimeout(entry.timer);
+    doFetch(url, entry);
+  });
+}
+
 export function useData<T>(url: string): {
   data: T | null;
   loading: boolean;
@@ -79,9 +89,12 @@ export function useData<T>(url: string): {
   }, [url]);
 
   const entry = cache.get(url);
+  // Keep serving the previous payload while a refreshAll() refetch is in
+  // flight — only a never-fetched URL reports data: null.
+  const hasData = entry !== undefined && entry.data !== undefined;
   return {
-    data: entry?.status === "ok" ? (entry.data as T) : null,
-    loading: !entry || entry.status === "loading",
+    data: hasData ? (entry.data as T) : null,
+    loading: !entry || (entry.status === "loading" && !hasData),
     error: entry?.status === "error",
     retry,
   };

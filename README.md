@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 어디든 두가자 — Busan Wheelchair-Accessibility Dashboard (DIVE 2026)
 
-## Getting Started
+Analytics dashboard for the DIVE 2026 hackathon: 두리발 (Busan special transport)
+trip demand crossed with barrier-free infrastructure to surface 사각지대
+(high-demand / low-infrastructure dongs) and simulate improvements.
 
-First, run the development server:
+Team: 아마란스H · Data: 부산시설공단 · 윌체어 · 공공데이터포털
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Production:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run build
+npm run start
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`npm run typecheck` runs `tsc --noEmit` (strict).
 
-## Learn More
+## Finals data swap — no UI changes needed
 
-To learn more about Next.js, take a look at the following resources:
+The UI reads ONLY the JSON artifacts in `public/data/`, with schemas and file
+names frozen in `lib/types.ts` (the data contract). At the finals:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Drop the new input CSVs into the pipeline (`pipeline/`).
+2. Re-run the pipeline so it rewrites `public/data/*.json` / `dongs.geojson`.
+3. Reload the browser — nothing else. All KPIs, charts, map layers, rankings
+   and the simulation recompute from the new artifacts.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+If an artifact is missing or unparsable the affected panel shows
+"데이터 준비 중…" and silently re-polls every 8 seconds, so the dashboard picks
+up pipeline output as soon as it lands (no reload needed).
 
-## Deploy on Vercel
+`model_results.json` is the data scientist's slot: cards render its
+`headline`/`detail`/`numbers` as-is; `status: "placeholder"` shows a
+"분석 대기" badge, `"final"` shows "확정".
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scene guide (sidebar order = story order)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| # | Scene | What it shows |
+|---|-------|---------------|
+| 1 | 개요 | KPI cards (총 이용·미배차율·대기시간·휠체어 비중), hourly/day-of-week charts, faint dropoff choropleth |
+| 2 | 이동수요 지도 | 3D hexagon density (250m) of trip endpoints vs dong choropleth, hour-range filter |
+| 3 | 하루의 흐름 | Animated trips over seconds-of-day (TripsLayer), play/pause, 30/120/300× speed, clock, colors by wheelchair type |
+| 4 | OD 흐름 | Origin→destination arcs between dong centroids, width ∝ √count, dong list filters arcs |
+| 5 | 사각지대 분석 | Bivariate demand×infra choropleth (HL red = priority), click a dong for full detail |
+| 6 | 미충족 수요 | 100m cells of unassigned/cancelled requests, hourly unassigned chart |
+| 7 | 인프라 지도 | POI layer with type toggles (충전소/병의원/약국/복지시설), toilets-per-구 bars, metro elevator table |
+| 8 | 우선순위·시뮬레이션 | Top-20 dongs by gapScore (sortable, shortage badges), "충전소 +1" simulation with live rank change |
+| 9 | 통계 모델 | Result cards from `model_results.json` (filled by the data scientist at finals) |
+
+## Architecture
+
+- Next.js 15 (app router) + React 19, TypeScript strict, Tailwind v4.
+- deck.gl 9 layers over a MapLibre basemap via `MapboxOverlay`
+  (`react-map-gl/maplibre` `useControl`), all client-side (`ssr: false`).
+- State: React hooks only. Each scene component owns its local UI state and
+  pushes `{layers, getTooltip}` up to the shared map via a callback.
+- `lib/useData.ts`: shared fetch hook with in-memory cache + error state +
+  8s re-poll on failure.
+- `lib/types.ts`: the pipeline↔UI data contract — do not edit casually.
+
+## Offline note
+
+The CARTO dark basemap (`basemaps.cartocdn.com`) needs internet. If it cannot
+load, the app automatically falls back to rendering all deck.gl data layers on
+the dark background (badge: "베이스맵 오프라인") — every scene stays fully
+functional, only the street context is missing.
