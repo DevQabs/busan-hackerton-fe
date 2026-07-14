@@ -1,5 +1,6 @@
 // What a scene hands to the map: deck.gl layers + an optional tooltip fn.
 
+import type { ReactNode } from "react";
 import type { DeckProps, Layer } from "@deck.gl/core";
 
 /** Camera request a scene can attach to its spec (e.g. "fly to this cell").
@@ -14,6 +15,9 @@ export interface MapSpec {
   layers: Layer[];
   getTooltip?: DeckProps["getTooltip"];
   flyTo?: FlyTo | null;
+  /** Scene-owned controls rendered over the map's top-left corner, below the
+   *  scene title chip (e.g. a name-search box). Most scenes leave this unset. */
+  overlay?: ReactNode;
 }
 
 export const EMPTY_SPEC: MapSpec = { layers: [] };

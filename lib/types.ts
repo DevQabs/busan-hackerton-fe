@@ -153,10 +153,11 @@ export interface ArrivalDeserts {
 export interface InfraPoint {
   lng: number;
   lat: number;
-  type: "charger" | "hospital" | "pharmacy" | "welfare";
+  type: "charger" | "hospital" | "pharmacy" | "welfare" | "tourism";
   name: string;
   dong?: string;
-  /** extra label: hospital 종별 (의원/병원/종합병원…), charger capacity, welfare type */
+  /** extra label: hospital 종별 (의원/병원/종합병원…), charger capacity, welfare type,
+   *  tourism 카테고리 (전시/공연, 관광지 등) */
   detail?: string;
 }
 
@@ -204,6 +205,7 @@ export const DATA = {
   toiletsGu: "/data/toilets_gu.json",
   elevators: "/data/elevators.json",
   modelResults: "/data/model_results.json",
+  tourism: "/data/tourism.json",
 } as const;
 
 /** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
@@ -212,4 +214,70 @@ export interface UnmetCell {
   lat: number;
   unassigned: number; // 미배차 requests in this cell (pickup side)
   cancelled: number;
+}
+
+/** public/data/tourism.json — Busan tourist-site catalogue ("관광지 사각지대").
+ *  Sourced from TourAPI-style xlsx exports (관광지/문화시설/레포츠/숙박 sheets),
+ *  cross-referenced against the 배리어프리 문화예술관광지 layer already used by
+ *  infra_points.json (type "tourism") to flag barrier-free coverage. */
+export interface TourismSite {
+  id: string;
+  name: string;
+  category: "관광지" | "문화시설" | "레포츠" | "숙박";
+  lng: number;
+  lat: number;
+  address: string;
+  gu: string; // 시군구, parsed from address; "기타" if unresolved
+  phone?: string;
+  /** raw 이용시간 text (Korean, may be empty) — shown verbatim in the UI */
+  hoursRaw: string;
+  /** raw 쉬는날 text (Korean, may be empty) */
+  closedRaw: string;
+  /** true when 이용시간 text indicates 24시간/상시 개방 (no daily close time) */
+  alwaysOpen: boolean;
+  /** true when 이용시간 could not be parsed into an hour range (filters treat as always-visible) */
+  hoursUnknown: boolean;
+  openHour: number | null;  // 0..23, null when alwaysOpen/hoursUnknown
+  closeHour: number | null; // 0..23, null when alwaysOpen/hoursUnknown
+  /** best-effort from 쉬는날: at least one weekday (월~금) is not a closed day */
+  openWeekday: boolean;
+  /** best-effort from 쉬는날: at least one weekend day (토·일) is not a closed day */
+  openWeekend: boolean;
+  /** matched against the barrier-free 문화예술관광지 layer (name/proximity match) */
+  barrierFree: boolean;
+  /** haversine meters to the nearest infra point of each type (null if none exist) */
+  nearestM: { charger: number | null; hospital: number | null; welfare: number | null };
+  /** Korean shortage badges vs. the "관광지 사각지대" thresholds (charger 2km /
+   *  hospital 500m / welfare 1km), e.g. "충전소 2km 밖" — empty when fully covered */
+  lack: string[];
+  /** sum of (distance/threshold − 1) over each lacking category; 0 when none lack.
+   *  Higher = worse. Used to rank barrier-free-lacking sites in the UI. */
+  blindSpotScore: number;
+}
+
+export interface TourismCategoryStat {
+  category: string;
+  total: number;
+  barrierFree: number;
+  share: number; // barrierFree / total, 0..1
+}
+
+export interface TourismGuStat {
+  gu: string;
+  total: number;
+  barrierFree: number;
+  share: number;
+}
+
+export interface TourismStats {
+  total: number;
+  barrierFree: number;
+  barrierFreeShare: number;
+  byCategory: TourismCategoryStat[];
+  byGu: TourismGuStat[]; // sorted by total desc
+}
+
+export interface TourismDeserts {
+  sites: TourismSite[];
+  stats: TourismStats;
 }

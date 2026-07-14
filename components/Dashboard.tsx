@@ -16,6 +16,7 @@ import { UnmetScene } from "@/components/scenes/UnmetScene";
 import { InfraScene } from "@/components/scenes/InfraScene";
 import { PriorityScene } from "@/components/scenes/PriorityScene";
 import { ModelsScene } from "@/components/scenes/ModelsScene";
+import { TourismScene } from "@/components/scenes/TourismScene";
 
 export default function Dashboard() {
   const [scene, setScene] = useState<SceneId>("overview");
@@ -30,10 +31,13 @@ export default function Dashboard() {
 
       <main className="relative min-w-0 flex-1">
         <MapCanvas spec={mapSpec} />
-        {/* scene title chip over the map */}
-        <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-lg border border-line bg-panel/85 px-3.5 py-2.5 backdrop-blur">
-          <div className="text-[13px] font-bold leading-5 text-ink">{def?.label}</div>
-          <div className="text-[11px] leading-4 text-dim">{def?.caption}</div>
+        {/* scene title chip + scene-owned overlay controls (e.g. search box) */}
+        <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
+          <div className="pointer-events-none rounded-lg border border-line bg-panel/85 px-3.5 py-2.5 backdrop-blur">
+            <div className="text-[13px] font-bold leading-5 text-ink">{def?.label}</div>
+            <div className="text-[11px] leading-4 text-dim">{def?.caption}</div>
+          </div>
+          {mapSpec.overlay}
         </div>
       </main>
 
@@ -49,6 +53,7 @@ export default function Dashboard() {
         {scene === "infra" && <InfraScene onMapSpec={onMapSpec} />}
         {scene === "priority" && <PriorityScene onMapSpec={onMapSpec} />}
         {scene === "models" && <ModelsScene onMapSpec={onMapSpec} />}
+        {scene === "tourism" && <TourismScene onMapSpec={onMapSpec} />}
       </aside>
     </div>
   );
