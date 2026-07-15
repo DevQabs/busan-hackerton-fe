@@ -71,3 +71,42 @@ export const INFRA_LABEL: Record<string, string> = {
   welfare: "복지시설",
   tourism: "문화관광지",
 };
+
+/** 15 official disability types — colors span the existing hue set (accent/
+ *  demand/infra/warn/unmet/tourism/gapHH) plus a few new hues so all 15
+ *  stay visually distinct in the welfare-programs scene. */
+export const DISABILITY_HEX: Record<string, string> = {
+  지체: "#38bdf8",
+  시각: "#fbbf24",
+  청각: "#c084fc",
+  언어: "#f472b6",
+  지적: "#34d399",
+  뇌병변: "#e5484d",
+  자폐성: "#8b5cf6",
+  정신: "#fb7185",
+  신장: "#22d3ee",
+  심장: "#f97316",
+  호흡기: "#2dd4bf",
+  간: "#a3e635",
+  안면: "#eab308",
+  장루_요루: "#818cf8",
+  뇌전증: "#f43f5e",
+};
+
+export const DISABILITY_TYPE_LABEL: Record<string, string> = {
+  지체: "지체장애",
+  시각: "시각장애",
+  청각: "청각장애",
+  언어: "언어장애",
+  지적: "지적장애",
+  뇌병변: "뇌병변장애",
+  자폐성: "자폐성장애",
+  정신: "정신장애",
+  신장: "신장장애",
+  심장: "심장장애",
+  호흡기: "호흡기장애",
+  간: "간장애",
+  안면: "안면장애",
+  장루_요루: "장루·요루장애",
+  뇌전증: "뇌전증장애",
+};

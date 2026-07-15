@@ -206,6 +206,7 @@ export const DATA = {
   elevators: "/data/elevators.json",
   modelResults: "/data/model_results.json",
   tourism: "/data/tourism.json",
+  welfarePrograms: "/data/welfare_programs.json",
 } as const;
 
 /** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
@@ -281,3 +282,68 @@ export interface TourismDeserts {
   sites: TourismSite[];
   stats: TourismStats;
 }
+
+/** public/data/welfare_programs.json — 부산 5개구 장애인복지관 프로그램
+ *  ("장애유형별 복지 운영 프로그램"). Sourced from 5 gu-level program CSVs
+ *  with differing schemas/encodings; classified into the 15 official
+ *  disability types via a 3-tier matcher (explicit target text → content
+ *  keyword inference → 공통/general fallback). Programs with no
+ *  type-specific text (general) are additionally tagged with the 7
+ *  "내부·비가시장애" types (신장/심장/호흡기/간/안면/장루_요루/뇌전증), since
+ *  those rarely have activity restrictions implied by generic program text —
+ *  시각·청각 are excluded from that fallback (real sensory access barriers,
+ *  never mentioned in the source data). */
+export interface WelfareProgram {
+  id: string;
+  gu: string;      // 남구 | 영도구 | 사하구 | 금정구 | 사상구
+  center: string;  // 복지관명
+  programName: string;
+  description?: string;
+  targetRaw?: string;   // original 대상/이용대상 free text
+  schedule?: string;
+  address?: string;
+  lng?: number;
+  lat?: number;
+  /** true when lng/lat is a 구 centroid approximation (남구/사상구 source CSVs
+   *  have no address/coordinate columns at all), not the actual 복지관 address. */
+  locationApprox?: boolean;
+  phone?: string;
+  disabilityTypes: string[]; // subset of the 15 official types
+  isGeneral: boolean;        // true when no type-specific text was found (공통)
+  classifyTier: 1 | 2 | 3;   // 1=explicit, 2=content-inferred, 3=general
+  /** UI-facing badge: "explicit" = 직접 명시, "inferred" = 내용 기반 추론
+   *  (표시상 explicit과 동일 취급), "general" = 이용 가능(일반) */
+  matchType: "explicit" | "inferred" | "general";
+}
+
+export interface WelfareTypeStat {
+  type: string;
+  total: number;
+  byGu: Record<string, number>;
+}
+
+export interface WelfareGuStat {
+  gu: string;
+  total: number;
+  generalCount: number;
+  byType: Record<string, number>;
+}
+
+export interface WelfareProgramStats {
+  total: number;
+  generalCount: number;
+  byType: WelfareTypeStat[];
+  byGu: WelfareGuStat[]; // sorted by total desc
+}
+
+export interface WelfareProgramsData {
+  programs: WelfareProgram[];
+  stats: WelfareProgramStats;
+}
+
+/** The 15 official disability types, canonical display order. */
+export const DISABILITY_TYPES = [
+  "지체", "시각", "청각", "언어", "지적", "뇌병변", "자폐성", "정신",
+  "신장", "심장", "호흡기", "간", "안면", "장루_요루", "뇌전증",
+] as const;
+export type DisabilityType = (typeof DISABILITY_TYPES)[number];

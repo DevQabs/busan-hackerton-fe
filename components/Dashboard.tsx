@@ -17,6 +17,7 @@ import { InfraScene } from "@/components/scenes/InfraScene";
 import { PriorityScene } from "@/components/scenes/PriorityScene";
 import { ModelsScene } from "@/components/scenes/ModelsScene";
 import { TourismScene } from "@/components/scenes/TourismScene";
+import { WelfareScene } from "@/components/scenes/WelfareScene";
 
 export default function Dashboard() {
   const [scene, setScene] = useState<SceneId>("overview");
@@ -54,6 +55,7 @@ export default function Dashboard() {
         {scene === "priority" && <PriorityScene onMapSpec={onMapSpec} />}
         {scene === "models" && <ModelsScene onMapSpec={onMapSpec} />}
         {scene === "tourism" && <TourismScene onMapSpec={onMapSpec} />}
+        {scene === "welfare" && <WelfareScene onMapSpec={onMapSpec} />}
       </aside>
     </div>
   );
