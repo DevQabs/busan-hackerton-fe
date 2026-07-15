@@ -130,8 +130,8 @@ def main():
     types = {}
     for p in infra:
         types[p['type']] = types.get(p['type'], 0) + 1
-    check(set(types) == {'charger', 'hospital', 'pharmacy', 'welfare'},
-          f'4 infra types present ({types})')
+    check(set(types) == {'charger', 'hospital', 'pharmacy', 'welfare', 'tourism'},
+          f'5 infra types present ({types})')
     check(all(in_bbox(p['lng'], p['lat']) for p in infra), 'infra coords in bbox')
     check(types['hospital'] > 5000 and types['pharmacy'] > 1500, 'hospital/pharmacy counts sane')
 

@@ -35,6 +35,7 @@ SHOPS_INNER = '소상공인시장진흥공단_상가(상권)정보_부산_202603
 F_HOSP = os.path.join(SCRATCH, 'hosp', '1.병원정보서비스(2026.6.).xlsx')
 F_PHARM = os.path.join(SCRATCH, 'hosp', '2.약국정보서비스(2026.6.).xlsx')
 F_WELFARE = os.path.join(SCRATCH, 'shp', '부산광역시_장애인 복지시설 현황.dbf')
+F_TOURISM = os.path.join(DIVE, '한국문화정보원_전국 배리어프리 문화예술관광지_20221125.csv')
 F_DONGS_RAW = os.path.join(OUT, 'busan_dongs_raw.geojson')
 
 # Busan bbox used for coordinate sanity filters ([lng, lat] WGS84)
@@ -424,6 +425,30 @@ def load_welfare():
         pts.append({'lng': lng, 'lat': lat, 'type': 'welfare',
                     'name': rec['facility_n'], 'detail': rec['facility_t']})
     return pts, skipped
+
+
+def load_tourism():
+    """한국문화정보원 nationwide barrier-free 문화예술관광지 CSV, filtered to Busan."""
+    pts = []
+    with open(F_TOURISM, encoding='utf-8-sig') as f:
+        for row in csv.DictReader(f):
+            if (row['시도 명칭'] or '').strip() != '부산광역시':
+                continue
+            try:
+                lat = float(row['위도'])
+                lng = float(row['경도'])
+            except (TypeError, ValueError):
+                continue
+            if not in_bbox(lng, lat):
+                continue
+            name = (row['시설명'] or '').strip()
+            branch = (row['분점명'] or '').strip()
+            if branch and branch != 'N':
+                name = f'{name} {branch}'
+            detail = (row['카테고리2'] or row['카테고리1'] or '').strip()
+            pts.append({'lng': lng, 'lat': lat, 'type': 'tourism',
+                        'name': name, 'detail': detail})
+    return pts
 
 
 def load_shops_per_dong(cd8_index):
@@ -996,18 +1021,22 @@ def main():
     hospitals = load_hira(F_HOSP, 'hospital')
     pharmacies = load_hira(F_PHARM, 'pharmacy')
     welfare, welfare_skipped = load_welfare()
+    tourism = load_tourism()
     report(f'chargers {len(chargers)} | hospitals {len(hospitals)} | '
            f'pharmacies {len(pharmacies)} | welfare {len(welfare)} '
-           f'(excluded outliers/invalid: {welfare_skipped})')
+           f'(excluded outliers/invalid: {welfare_skipped}) | tourism {len(tourism)}')
 
     locator = DongLocator(feats)
     infra_counts = defaultdict(lambda: {'chargers': 0, 'hospitals': 0,
                                         'pharmacies': 0, 'welfare': 0})
+    # NOTE: 'tourism' (문화예술관광지) is a display-only POI layer — it is not
+    # folded into infra_counts / infraZ / gapScore, only chargers/hospitals/
+    # pharmacies/welfare feed the gap-score model.
     type_key = {'charger': 'chargers', 'hospital': 'hospitals',
                 'pharmacy': 'pharmacies', 'welfare': 'welfare'}
     infra_points = []
     pip_missed = Counter()
-    for pt in chargers + hospitals + pharmacies + welfare:
+    for pt in chargers + hospitals + pharmacies + welfare + tourism:
         f_ = locator.locate(pt['lng'], pt['lat'])
         rec = {'lng': round(pt['lng'], 6), 'lat': round(pt['lat'], 6),
                'type': pt['type'], 'name': pt['name']}
@@ -1015,7 +1044,8 @@ def main():
             rec['detail'] = pt['detail']
         if f_ is not None:
             rec['dong'] = f_['properties']['_short']
-            infra_counts[f_['properties']['_admCd']][type_key[pt['type']]] += 1
+            if pt['type'] in type_key:
+                infra_counts[f_['properties']['_admCd']][type_key[pt['type']]] += 1
         else:
             pip_missed[pt['type']] += 1
         infra_points.append(rec)

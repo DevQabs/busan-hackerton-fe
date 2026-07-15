@@ -16,6 +16,7 @@ export const HEX = {
   gapHH: "#8b5cf6",
   gapLH: "#14b8a6",
   gapLL: "#2a3348",
+  tourism: "#c084fc", // 배리어프리 문화예술관광지
 } as const;
 
 export type RGB = [number, number, number];
@@ -27,6 +28,7 @@ export const RGB_UNMET: RGB = [251, 113, 133];
 export const RGB_INFRA: RGB = [52, 211, 153];
 export const RGB_WARN: RGB = [251, 191, 36];
 export const RGB_GRAY: RGB = [100, 116, 139];
+export const RGB_TOURISM: RGB = [192, 132, 252];
 
 export const RGB_GAP: Record<"HH" | "HL" | "LH" | "LL", RGBA> = {
   HL: [229, 72, 77, 210], // priority: high demand, low infra
@@ -51,6 +53,7 @@ export const INFRA_COLORS: Record<string, RGB> = {
   hospital: RGB_INFRA,
   pharmacy: RGB_DEMAND,
   welfare: RGB_WARN,
+  tourism: RGB_TOURISM,
 };
 
 export const INFRA_HEX: Record<string, string> = {
@@ -58,6 +61,7 @@ export const INFRA_HEX: Record<string, string> = {
   hospital: HEX.infra,
   pharmacy: HEX.demand,
   welfare: HEX.warn,
+  tourism: HEX.tourism,
 };
 
 export const INFRA_LABEL: Record<string, string> = {
@@ -65,4 +69,5 @@ export const INFRA_LABEL: Record<string, string> = {
   hospital: "병의원",
   pharmacy: "약국",
   welfare: "복지시설",
+  tourism: "문화관광지",
 };

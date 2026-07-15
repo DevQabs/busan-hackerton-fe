@@ -17,7 +17,7 @@ import { DataPending } from "@/components/ui/DataPending";
 import { Explainer } from "@/components/ui/Explainer";
 import { ToiletsBar } from "@/components/charts/ToiletsBar";
 
-const TYPES = ["charger", "hospital", "pharmacy", "welfare"] as const;
+const TYPES = ["charger", "hospital", "pharmacy", "welfare", "tourism"] as const;
 type InfraType = (typeof TYPES)[number];
 
 export function InfraScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
@@ -30,10 +30,17 @@ export function InfraScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
     hospital: true,
     pharmacy: true,
     welfare: true,
+    tourism: true,
   });
 
   const counts = useMemo(() => {
-    const c: Record<InfraType, number> = { charger: 0, hospital: 0, pharmacy: 0, welfare: 0 };
+    const c: Record<InfraType, number> = {
+      charger: 0,
+      hospital: 0,
+      pharmacy: 0,
+      welfare: 0,
+      tourism: 0,
+    };
     for (const p of points.data ?? []) {
       if (p.type in c) c[p.type as InfraType] += 1;
     }
@@ -215,8 +222,9 @@ export function InfraScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
             <p>
               앞의 씬들이 &ldquo;수요&rdquo;를 그렸다면, 이 화면은 문제의
               반대편 절반인 <b>공급(무장애 인프라)</b>을 그립니다. 전동휠체어
-              급속충전기·병의원·약국·장애인복지시설의 위치, 구별 장애인화장실
-              보유율, 도시철도 승강설비까지 — &ldquo;두리발에서 내린 다음&rdquo;의
+              급속충전기·병의원·약국·장애인복지시설·배리어프리 문화예술관광지의
+              위치, 구별 장애인화장실 보유율, 도시철도 승강설비까지 —
+              &ldquo;두리발에서 내린 다음&rdquo;의
               환경을 구성하는 요소들입니다. 유형 버튼으로 레이어를 켜고 끄며
               수요 밀집 지역과 겹쳐볼 수 있습니다.
             </p>
@@ -235,7 +243,9 @@ export function InfraScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
             <p>
               시설 지도는 공공데이터 포인트를 그대로 찍은 것입니다: 전동휠체어
               급속충전기(부산시), 병의원·약국(건강보험심사평가원),
-              장애인복지시설(SHP). 장애인화장실은 원자료에 좌표가 없어 구
+              장애인복지시설(SHP), 배리어프리 문화예술관광지(한국문화정보원,
+              전국 데이터 중 부산광역시만 필터링). 장애인화장실은 원자료에
+              좌표가 없어 구
               단위 집계로만 보여줍니다(공중화장실 중 장애인용 대변기 등
               설비를 1개 이상 갖춘 개소 비율). 도시철도 승강설비는 역별
               승강기·에스컬레이터 대수의 2025년 현황 스냅샷입니다.
