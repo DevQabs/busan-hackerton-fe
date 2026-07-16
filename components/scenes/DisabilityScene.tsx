@@ -68,7 +68,15 @@ function SplitBar({
   );
 }
 
-function Legend({ mode, meanPer1k }: { mode: Mode; meanPer1k: number }) {
+function Legend({
+  mode,
+  meanPer1k,
+  showNoData,
+}: {
+  mode: Mode;
+  meanPer1k: number;
+  showNoData: boolean;
+}) {
   return (
     <div className="pointer-events-none rounded-lg border border-line bg-panel/85 px-3 py-2 text-[10px] leading-4 text-dim backdrop-blur">
       {mode === "per1k" ? (
@@ -87,9 +95,11 @@ function Legend({ mode, meanPer1k }: { mode: Mode; meanPer1k: number }) {
           {MODE_LABEL[mode]} 많을수록 진하게
         </div>
       )}
-      <div>
-        <span className="text-[#64748b]">■</span> 회색 = 등록현황 미공개 구·군
-      </div>
+      {showNoData && (
+        <div>
+          <span className="text-[#64748b]">■</span> 회색 = 등록현황 미공개 구·군
+        </div>
+      )}
     </div>
   );
 }
@@ -106,7 +116,7 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
   const guMap = useMemo(() => new Map(gus.map((g) => [g.gu, g])), [gus]);
   const totals = disability.data?.totals;
 
-  /** 등록현황 보유 9개 구의 가중평균 천명당 이용 — diverging 색의 기준선. */
+  /** 등록현황 보유 구의 가중평균 천명당 이용 — diverging 색의 기준선. */
   const meanPer1k = useMemo(() => {
     const withReg = gus.filter((g) => g.hasRegistry && (g.registered ?? 0) > 0);
     const trips = withReg.reduce((s, g) => s + g.trips, 0);
@@ -162,7 +172,7 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
         const t = Math.sqrt(g.trips / maxTrips);
         return [34, 211, 238, 18 + t * 160];
       }
-      // per1k — 9개 구 가중평균 대비 diverging
+      // per1k — 등록현황 보유 구 가중평균 대비 diverging
       if (g.tripsPer1k === null || meanPer1k === 0) return NO_DATA_FILL;
       const ratio = g.tripsPer1k / meanPer1k;
       if (ratio < 1) {
@@ -225,9 +235,14 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
     };
   }, [guMap]);
 
+  const noRegistryGus = useMemo(() => gus.filter((g) => !g.hasRegistry), [gus]);
+
   const overlay = useMemo(
-    () => (gus.length > 0 ? <Legend mode={mode} meanPer1k={meanPer1k} /> : undefined),
-    [gus.length, mode, meanPer1k],
+    () =>
+      gus.length > 0 ? (
+        <Legend mode={mode} meanPer1k={meanPer1k} showNoData={noRegistryGus.length > 0} />
+      ) : undefined,
+    [gus.length, mode, meanPer1k, noRegistryGus.length],
   );
 
   useEffect(() => {
@@ -253,7 +268,6 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
     disability.data?.typeTotals.find((t) => t.type === OTHER_TYPE)?.trips ?? 0;
   const estUsersSum = useMemo(() => gus.reduce((s, g) => s + g.estUsers, 0), [gus]);
   const worst = ranked[0] ?? null;
-  const noRegistryGus = gus.filter((g) => !g.hasRegistry);
 
   if (!disability.data || !dongs.data) {
     return (
@@ -286,7 +300,11 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
         <Kpi
           label="등록 장애인"
           value={`${fmt(totals?.registeredKnown ?? 0)}명`}
-          sub={`${totals?.guWithRegistry ?? 0}개 구·군 합계 — ${noRegistryGus.length}개 구 미공개`}
+          sub={
+            noRegistryGus.length > 0
+              ? `${totals?.guWithRegistry ?? 0}개 구·군 합계 — ${noRegistryGus.length}개 구 미공개`
+              : `${totals?.guWithRegistry ?? 0}개 구·군 전체 합계`
+          }
           color={HEX.demand}
         />
         <Kpi
@@ -373,13 +391,13 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
         </table>
       </Section>
 
-      <p className="rounded-md border border-unmet/40 bg-unmet/5 px-3 py-2 text-[11px] leading-4 text-ink/85">
-        <b className="text-unmet">{noRegistryGus.map((g) => g.gu).join("·")}</b>{" "}
-        {noRegistryGus.length}개 구는 등록현황이 공개되지 않아 순위에서 빠졌습니다(지도의
-        회색). 특히 <b className="text-unmet">부산진구</b>는 이용{" "}
-        {fmt(guMap.get("부산진구")?.trips ?? 0)}건으로 16개 구·군 중 최다인데도 비교가
-        불가능합니다.
-      </p>
+      {noRegistryGus.length > 0 && (
+        <p className="rounded-md border border-unmet/40 bg-unmet/5 px-3 py-2 text-[11px] leading-4 text-ink/85">
+          <b className="text-unmet">{noRegistryGus.map((g) => g.gu).join("·")}</b>{" "}
+          {noRegistryGus.length}개 구는 등록현황이 공개되지 않아 순위에서
+          빠졌습니다(지도의 회색).
+        </p>
+      )}
 
       {/* ── 선택 구 상세 ───────────────────────────────────────────────── */}
       {sel && (
@@ -487,7 +505,8 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
       <Section title="유형별 등록 vs 이용 구성비" aside="시 전체">
         <div className="mb-2 flex gap-3 text-[10px] leading-4 text-dim">
           <span>
-            <span style={{ color: HEX.demand }}>■</span> 등록 구성비 (9개 구 합)
+            <span style={{ color: HEX.demand }}>■</span> 등록 구성비 (
+            {totals?.guWithRegistry ?? 0}개 구 합)
           </span>
           <span>
             <span style={{ color: HEX.accent }}>■</span> 두리발 이용 구성비
@@ -519,12 +538,13 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
         how={
           <>
             <p>
-              9개 구·군의 장애인 등록현황 공공데이터(구마다 형식이 달라 장애유형 15종 ×
-              심한/심하지 않은 장애 기준으로 통일, 제공되는 구는 성별 포함)를 정규화하고,
-              2025년 5월 두리발 완료 운행 {fmt(totals?.completedTrips ?? 0)}건을 출발지
-              행정동의 구·군으로 집계해 교차했습니다. 핵심 지표는{" "}
+              {totals?.guWithRegistry ?? 0}개 구·군의 장애인 등록현황 공공데이터(구마다
+              형식이 달라 장애유형 15종 × 심한/심하지 않은 장애 기준으로 통일, 제공되는
+              구는 성별 포함)를 정규화하고, 2025년 5월 두리발 완료 운행{" "}
+              {fmt(totals?.completedTrips ?? 0)}건을 출발지 행정동의 구·군으로 집계해
+              교차했습니다. 핵심 지표는{" "}
               <b className="text-ink">등록 장애인 1,000명당 월 이용 건수</b>(이용 건수 ÷
-              등록 장애인 수 × 1,000)로, 지도의 붉은/녹색은 등록현황 보유 9개 구
+              등록 장애인 수 × 1,000)로, 지도의 붉은/녹색은 등록현황 보유 구
               가중평균({fmt(meanPer1k)}건) 대비 낮음/높음을 뜻합니다.
             </p>
           </>
@@ -533,14 +553,13 @@ export function DisabilityScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void
           <>
             <p>
               ① 등록현황 기준일이 구마다 2024-05~2026-06으로 제각각이고 이용 로그는
-              2025년 5월 한 달뿐이라 시점이 어긋납니다. ② 7개 구·군(이용 최다인
-              부산진구 포함)은 등록현황 미공개라 갭 순위가 9개 구로 한정됩니다. ③ 이용
-              건수의 약 {pct(otherTrips / (totals?.completedTrips ?? 1), 0)}는 65세
-              이상·일시적 장애 등 등록 장애인이 아닌 교통약자입니다. ④ 한 사람이 여러 번
-              이용하므로 천명당 이용은 <b className="text-ink">건수 지표이지
-              이용률(%)이 아니며</b>, 추정 이용자 수도 이용자 ID가 없어 출발좌표·유형
-              조합으로 근사한 값입니다. ⑤ 강서구는 청각·언어가 병합 집계돼 있고 남구는
-              기준일이 원자료에 없습니다.
+              2025년 5월 한 달뿐이라 시점이 어긋납니다. ② 이용 건수의 약{" "}
+              {pct(otherTrips / (totals?.completedTrips ?? 1), 0)}는 65세 이상·일시적
+              장애 등 등록 장애인이 아닌 교통약자입니다. ③ 한 사람이 여러 번 이용하므로
+              천명당 이용은 <b className="text-ink">건수 지표이지 이용률(%)이 아니며</b>,
+              추정 이용자 수도 이용자 ID가 없어 출발좌표·유형 조합으로 근사한 값입니다.
+              ④ 강서구는 청각·언어가 병합 집계돼 있고 남구·동래구는 기준일이 원자료에
+              없습니다.
             </p>
           </>
         }

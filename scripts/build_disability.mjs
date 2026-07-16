@@ -1,14 +1,16 @@
-// Builds public/data/disability.json ("장애인 수요 분석") from the 9 구·군
-// 장애인 등록현황 CSVs plus the 두리발 운영 로그 (2025-05). 등록 장애인 수
-// (잠재 수요)와 완료 운행(실제 이용)을 구 단위로 교차 집계한다.
+// Builds public/data/disability.json ("장애인 수요 분석") from the 16 구·군
+// 장애인 등록현황 파일(CSV/xlsx) plus the 두리발 운영 로그 (2025-05). 등록
+// 장애인 수(잠재 수요)와 완료 운행(실제 이용)을 구 단위로 교차 집계한다.
 //
 // Run: node scripts/build_disability.mjs
-// 원본 CSV는 전부 CP949 — WHATWG TextDecoder('euc-kr')(=windows-949)로 디코딩.
-// 구마다 스키마가 제각각이라 구별 전용 파서를 두고, 공통 구조로 정규화한다.
+// 초기 제공 9개 구 CSV는 CP949, 추가 제공 7개 구는 UTF-8(BOM) CSV 또는 xlsx —
+// readCsv가 BOM으로 인코딩을 분기한다. 구마다 스키마가 제각각이라 구별 전용
+// 파서를 두고, 공통 구조로 정규화한다.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import XLSX from "xlsx";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -26,8 +28,20 @@ const TRIP_LOG = path.join(
 // 공통 유틸
 // ---------------------------------------------------------------------------
 
-const decoder = new TextDecoder("euc-kr");
-const readCsv = (p) => decoder.decode(fs.readFileSync(p));
+const cp949 = new TextDecoder("euc-kr");
+function readCsv(p) {
+  const buf = fs.readFileSync(p);
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return buf.toString("utf8").slice(1); // UTF-8 BOM(﻿) 제거
+  }
+  return cp949.decode(buf);
+}
+
+/** xlsx 첫 시트를 2차원 배열로 (빈 셀 = undefined/null). */
+function xlsxRows(p) {
+  const wb = XLSX.readFile(p);
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+}
 
 /** 따옴표 인지 CSV 라인 파서 — 영도구의 "1,466" 같은 천단위 콤마 필드와
  *  로그의 주소 내 콤마를 안전하게 처리한다. */
@@ -316,9 +330,133 @@ function parseGijanggun(p) {
   return fromByType("2024-05-20", byType);
 }
 
+/** 동래·서구·부산진·해운대 공통 스키마(UTF-8 BOM):
+ *  장애유형,합계_계,합계_남성,합계_여성,심한장애_소계/남성/여성,심하지않은장애_소계/남성/여성
+ *  — 첫 데이터행이 "합계" 행이라 유형 합과 교차검증한다. */
+const parseStandard = (asOf) => (p) => {
+  const table = rows(p);
+  const totalRow = table[1];
+  if (totalRow[0].trim() !== "합계") {
+    throw new Error(`${path.basename(p)}: 합계 행이 없습니다`);
+  }
+  const byType = new Map();
+  for (const r of table.slice(2)) {
+    const type = normalizeType(r[0]);
+    const total = toNum(r[1]);
+    const male = toNum(r[2]);
+    const female = toNum(r[3]);
+    const severe = toNum(r[4]);
+    const mild = toNum(r[7]);
+    if (male + female !== total || severe + mild !== total) {
+      throw new Error(`${path.basename(p)} ${type}: 구성 합 불일치 (total ${total})`);
+    }
+    byType.set(type, { type, total, severe, mild, male, female });
+  }
+  const out = fromByType(asOf, byType);
+  if (
+    out.registered !== toNum(totalRow[1]) ||
+    out.male !== toNum(totalRow[2]) ||
+    out.severe !== toNum(totalRow[4])
+  ) {
+    throw new Error(`${path.basename(p)}: 유형 합 ≠ 합계 행`);
+  }
+  return out;
+};
+
+/** 연제구: 읍면동,장애유형,합계_계,남,여,심한_소계,남,여,심하지_소계,남,여 —
+ *  동별 행을 유형으로 합산(소계 행 제외, 중구 파서 패턴), 합계 행과 교차검증. */
+function parseYeonjegu(p) {
+  const table = rows(p);
+  const totalRow = table[1];
+  const byType = new Map();
+  for (const r of table.slice(2)) {
+    if (r[1].trim() === "소계") continue;
+    const type = normalizeType(r[1]);
+    const cur = byType.get(type) ?? { type, total: 0, severe: 0, mild: 0, male: 0, female: 0 };
+    cur.total += toNum(r[2]);
+    cur.male += toNum(r[3]);
+    cur.female += toNum(r[4]);
+    cur.severe += toNum(r[5]);
+    cur.mild += toNum(r[8]);
+    byType.set(type, cur);
+  }
+  const out = fromByType("2026-03", byType);
+  if (
+    out.registered !== toNum(totalRow[2]) ||
+    out.male !== toNum(totalRow[3]) ||
+    out.severe !== toNum(totalRow[5])
+  ) {
+    throw new Error("연제구: 동별 합 ≠ 합계 행");
+  }
+  return out;
+}
+
+/** 금정구 xlsx: 제목 2행 + 헤더 2행 + "합계" 행 뒤 동별 행 — 열 구조는 연제구와
+ *  동일(읍면동,장애유형,계,남,여,심한 계/남/여,심하지 계/남/여). */
+function parseGeumjeonggu(p) {
+  const table = xlsxRows(p);
+  const totalRow = table[5];
+  if (totalRow?.[0] !== "합계") throw new Error("금정구: 합계 행 위치가 다릅니다");
+  const byType = new Map();
+  for (const r of table.slice(6)) {
+    if (!r?.length || String(r[1]).trim() === "소계") continue;
+    const type = normalizeType(r[1]);
+    const cur = byType.get(type) ?? { type, total: 0, severe: 0, mild: 0, male: 0, female: 0 };
+    cur.total += toNum(r[2]);
+    cur.male += toNum(r[3]);
+    cur.female += toNum(r[4]);
+    cur.severe += toNum(r[5]);
+    cur.mild += toNum(r[8]);
+    byType.set(type, cur);
+  }
+  const out = fromByType("2026-05", byType);
+  if (
+    out.registered !== toNum(totalRow[2]) ||
+    out.male !== toNum(totalRow[3]) ||
+    out.severe !== toNum(totalRow[5])
+  ) {
+    throw new Error("금정구: 동별 합 ≠ 합계 행");
+  }
+  return out;
+}
+
+/** 수영구 xlsx: 구 단위 단일 표 — 3열이 장애유형인 행만 집계(제목·헤더·소계·
+ *  출력정보 행은 3열이 비거나 유형이 아님), "합계" 행으로 교차검증. */
+function parseSuyeonggu(p) {
+  const byType = new Map();
+  let totalRow = null;
+  for (const r of xlsxRows(p)) {
+    if (r?.[0] === "합계") {
+      totalRow = r;
+      continue;
+    }
+    const label = typeof r?.[2] === "string" ? r[2].trim() : "";
+    if (!label || label === "소계" || label === "장애유형") continue;
+    const type = normalizeType(label);
+    const total = toNum(r[3]);
+    const male = toNum(r[4]);
+    const female = toNum(r[5]);
+    const severe = toNum(r[6]);
+    const mild = toNum(r[9]);
+    if (male + female !== total || severe + mild !== total) {
+      throw new Error(`수영구 ${type}: 구성 합 불일치 (total ${total})`);
+    }
+    byType.set(type, { type, total, severe, mild, male, female });
+  }
+  const out = fromByType("2026-01", byType);
+  if (
+    !totalRow ||
+    out.registered !== toNum(totalRow[3]) ||
+    out.severe !== toNum(totalRow[6])
+  ) {
+    throw new Error("수영구: 유형 합 ≠ 합계 행");
+  }
+  return out;
+}
+
 const REGISTRY_SOURCES = [
   ["북구", "부산광역시_북구_장애인등록현황_20251231.csv", parseBukgu],
-  ["남구", "부산광역시 남구_장애인유형별등급별등록현황.csv", parseNamgu],
+  ["남구", "부산광역시_남구_장애인유형별등급별등록현황.csv", parseNamgu],
   ["중구", "부산광역시 중구_장애인 등록 현황_20260629.csv", parseJunggu],
   ["동구", "부산광역시 동구 장애인 등록 현황_20260228.csv", parseDonggu],
   ["영도구", "부산광역시 영도구_장애유형별 장애인 등록현황_20260630.csv", parseYeongdogu],
@@ -326,6 +464,14 @@ const REGISTRY_SOURCES = [
   ["사하구", "부산광역시_사하구_장애인등록인수 현황_20260611.csv", parseSahagu],
   ["강서구", "부산광역시_강서구_장애등록_20250918.csv", parseGangseogu],
   ["기장군", "부산광역시_기장군_장애인등록현황_20240520.csv", parseGijanggun],
+  // 추가 제공분 (2026-07-16) — 이로써 16개 구·군 전체 커버
+  ["동래구", "부산광역시 동래구_2025년_장애인등록현황.csv", parseStandard(null)], // 파일명에 "2025년"만 있어 기준일 미상
+  ["서구", "부산광역시_서구_2026-02_장애인등록현황.csv", parseStandard("2026-02")],
+  ["부산진구", "부산광역시_진구_2026-05_장애인등록현황.csv", parseStandard("2026-05")],
+  ["해운대구", "해운대구_2026-03_장애인등록현황.csv", parseStandard("2026-03")],
+  ["연제구", "부산광역시_연제구_2026-03_장애인등록현황.csv", parseYeonjegu],
+  ["금정구", "부산광역시_금정구_2026-05_장애인등록현황.xlsx", parseGeumjeonggu],
+  ["수영구", "부산광역시_수영구_2026-01_장애인유형및장애정도별등록현황.xlsx", parseSuyeonggu],
 ];
 
 // ---------------------------------------------------------------------------
@@ -435,8 +581,8 @@ const gus = [...guSet]
 
 const registeredKnown = gus.reduce((s, g) => s + (g.registered ?? 0), 0);
 
-// 유형별 시 전체 비교 — 등록수는 "9개 구 합계"임을 스키마 주석에 명시
-// (강서구 언어는 청각에 병합돼 있어 언어 등록 합계는 8개 구 기준).
+// 유형별 시 전체 비교 — 등록수는 등록현황 보유 구(현재 16개 전체) 합계
+// (강서구 언어는 청각에 병합돼 있어 언어 등록 합계만 15개 구 기준).
 const typeTotals = [...TYPES, OTHER_TYPE].map((type) => {
   let registered = null;
   if (type !== OTHER_TYPE) {
