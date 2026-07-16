@@ -4,9 +4,10 @@ dest: matched 36,025 | busan-unmatched 0 | outside-busan(관외) 1,487 | empty 0
 totals: {'trips': 37512, 'completed': 32526, 'unassigned': 3520, 'cancelled': 1466, 'unassignedRate': 0.0938}
 wrote stats.json: 4,945 bytes
 === infra ===
-chargers 202 | hospitals 5615 | pharmacies 1733 | welfare 223 (excluded outliers/invalid: 5)
-infra points outside all dong polygons: {'welfare': 4}
-wrote infra_points.json: 964,313 bytes
+tourism CSV missing → recovered 457 POIs from previous infra_points.json
+chargers 202 | hospitals 5615 | pharmacies 1733 | welfare 223 (excluded outliers/invalid: 5) | tourism 457
+infra points outside all dong polygons: {'welfare': 4, 'tourism': 3}
+wrote infra_points.json: 1,024,601 bytes
 === shops ===
 shops rows 155,103 | joined to dongs 155,103 (100.00%)
 === nb regression ===
@@ -39,7 +40,12 @@ wrote ghosts.json: 261,627 bytes
   cells >= 20 dropoffs with score>0: 295 (kept 200) | greedy picks: 10
   greedy cumShare: [0.039, 0.077, 0.113, 0.145, 0.173, 0.196, 0.219, 0.241, 0.262, 0.283]
 wrote arrival_deserts.json: 39,533 bytes
+=== extra models ===
+  correlation: r=0.482 t=7.9 p=3.71e-15 | resid top: 모라3동 +1.21 · 동삼3동 +1.03 · 학장동 +0.95 · 아미동 +0.84
+  type×purpose: chi2=8292 df=36 V=0.192 | top cell 시각×출퇴근 15.9% vs overall 1.5%
+  retry funnel: unmet 4,985 → retried 2,318 (46.5%) → abandoned 2,667 | median gap 10.4min
+wrote model_charts.json: 2,686 bytes
   welch-t: t=5.63 df=10475 p=1.80e-08 d=0.085
   chi-square: chi2=334.6 p=3.17e-72 V=0.094 worst band 16-24시 adj=18.1 rate=0.159
   bootstrap top-1: 사상구 학장동 pTop5=1.0 gapCI=[8.74, 9.98]
-wrote model_results.json: 4,161 bytes
+wrote model_results.json: 7,650 bytes

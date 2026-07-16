@@ -224,12 +224,25 @@ def main():
 
     # model_results.json (rehearsal fits on May citywide data)
     models, _ = load('model_results.json')
-    check(len(models) == 4, f'4 model entries (got {len(models)})')
+    check(len(models) == 7, f'7 model entries (got {len(models)})')
     check(all(m['status'] in ('placeholder', 'rehearsal', 'final') for m in models),
           'status in {placeholder, rehearsal, final}')
     check({m['id'] for m in models} ==
-          {'nb-regression', 'welch-t', 'chi-square', 'bootstrap-stability'},
+          {'retry-funnel', 'correlation', 'nb-regression', 'chi-square-type-purpose',
+           'welch-t', 'chi-square', 'bootstrap-stability'},
           f"model ids match contract (got {sorted(m['id'] for m in models)})")
+    fun = next(m for m in models if m['id'] == 'retry-funnel')['numbers']
+    check(fun['retried'] + fun['abandoned'] == fun['unmet'],
+          'funnel retried + abandoned == unmet')
+    check(fun['unmet'] <= t['unassigned'] + t['cancelled'],
+          'funnel unmet <= unassigned + cancelled (coord-having subset)')
+    check(0.0 <= fun['retry_share'] <= 1.0, 'funnel retry_share in 0..1')
+    corr = next(m for m in models if m['id'] == 'correlation')['numbers']
+    check(-1.0 <= corr['pearson_r'] <= 1.0 and corr['n'] == 206,
+          f"correlation r in [-1,1], n == 206 (got r={corr['pearson_r']}, n={corr['n']})")
+    tp = next(m for m in models if m['id'] == 'chi-square-type-purpose')['numbers']
+    check(tp['chi2'] > 0 and tp['df'] > 0 and 0 <= tp['cramers_v'] <= 1,
+          'type-purpose chi2/df/V sane')
     nb = next(m for m in models if m['id'] == 'nb-regression')['numbers']
     for vn in ('intercept', 'chargers', 'medical', 'welfare', 'floor1Share'):
         irr, lo, hi = nb[f'irr_{vn}'], nb[f'irr_{vn}_lo'], nb[f'irr_{vn}_hi']
@@ -241,6 +254,25 @@ def main():
           f"bootstrap clusters == 31 days, B >= 200 (got {boot['clusters']}, {boot['B']})")
     check(boot['top1_gapCI_lo'] <= boot['top1_gapCI_hi'] and 0 <= boot['top1_pTop5'] <= 1,
           'bootstrap top-1 CI ordered, pTop5 in 0..1')
+
+    # model_charts.json (chart-only datasets for the 통계 씬)
+    mc, _ = load('model_charts.json')
+    wh = mc['waitHist']
+    check(wh['nManual'] > 0 and wh['nElectric'] > 0, 'waitHist group sizes > 0')
+    for key in ('manual', 'electric'):
+        s = sum(b[key] for b in wh['bins'])
+        check(abs(s - 1.0) < 0.01, f'waitHist {key} shares sum ≈ 1 (got {s:.3f})')
+    check(wh['bins'][-1]['label'].endswith('+'), 'waitHist last bin is the cap bin')
+    tpc = mc['typePurpose']
+    check(len(tpc['counts']) == len(tpc['rows'])
+          and all(len(r) == len(tpc['purposes']) for r in tpc['counts']),
+          'typePurpose matrix shape matches rows × purposes')
+    check(sum(map(sum, tpc['counts'])) == tpc['n'] == t['trips'],
+          f"typePurpose counts sum == n == trips (got {sum(map(sum, tpc['counts']))})")
+    check(tpc['rowTotals'] == [sum(r) for r in tpc['counts']]
+          and tpc['colTotals'] == [sum(r[j] for r in tpc['counts'])
+                                   for j in range(len(tpc['purposes']))],
+          'typePurpose row/col totals consistent')
 
     print('\n'.join(lines))
     if errors:

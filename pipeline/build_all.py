@@ -25,17 +25,44 @@ OUT = os.path.join(BASE, 'public', 'data')
 PIPE = os.path.dirname(os.path.abspath(__file__))
 SCRATCH = os.path.dirname(BASE)  # scratchpad/
 DIVE = '/Users/alexanderkim/Downloads/dive'
+# Repo lives at <DIVE_ROOT>/프로젝트/busan-hackerton-fe — the team's shared layout
+# keeps raw data in <DIVE_ROOT>/자료 and <DIVE_ROOT>/부산시설공단 자료.
+DIVE_ROOT = os.path.dirname(os.path.dirname(BASE))
+JARYO = os.path.join(DIVE_ROOT, '자료')
 
-F_TRIPS = os.path.join(DIVE, '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv')
-F_CHARGERS = os.path.join(DIVE, '전국전동휠체어급속충전기표준데이터.csv')
-F_TOILETS = os.path.join(DIVE, '공중화장실정보_부산광역시.csv')
-F_ELEV = os.path.join(DIVE, '부산교통공사_승강기 연도별 설치현황_20251231.csv')
-F_SHOPS_ZIP = os.path.join(DIVE, '소상공인시장진흥공단_상가(상권)정보_20260331.zip')
+
+def _find(*candidates):
+    """First existing path among candidates (last one returned for the error msg)."""
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return candidates[-1]
+
+
+F_TRIPS = _find(
+    os.path.join(DIVE, '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv'),
+    os.path.join(DIVE_ROOT, '부산시설공단 자료',
+                 '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv'))
+F_CHARGERS = _find(os.path.join(DIVE, '전국전동휠체어급속충전기표준데이터.csv'),
+                   os.path.join(JARYO, '전국전동휠체어급속충전기표준데이터.csv'))
+F_TOILETS = _find(os.path.join(DIVE, '공중화장실정보_부산광역시.csv'),
+                  os.path.join(JARYO, '공중화장실정보_부산광역시.csv'))
+F_ELEV = _find(os.path.join(DIVE, '부산교통공사_승강기 연도별 설치현황_20251231.csv'),
+               os.path.join(JARYO, '부산교통공사_승강기 연도별 설치현황_20251231.csv'))
+F_SHOPS_ZIP = _find(os.path.join(DIVE, '소상공인시장진흥공단_상가(상권)정보_20260331.zip'),
+                    os.path.join(JARYO, '소상공인시장진흥공단_상가(상권)정보_20260331.zip'))
 SHOPS_INNER = '소상공인시장진흥공단_상가(상권)정보_부산_202603.csv'
-F_HOSP = os.path.join(SCRATCH, 'hosp', '1.병원정보서비스(2026.6.).xlsx')
-F_PHARM = os.path.join(SCRATCH, 'hosp', '2.약국정보서비스(2026.6.).xlsx')
-F_WELFARE = os.path.join(SCRATCH, 'shp', '부산광역시_장애인 복지시설 현황.dbf')
-F_TOURISM = os.path.join(DIVE, '한국문화정보원_전국 배리어프리 문화예술관광지_20221125.csv')
+F_HOSP = _find(os.path.join(SCRATCH, 'hosp', '1.병원정보서비스(2026.6.).xlsx'),
+               os.path.join(JARYO, '전국 병의원 및 약국 현황 2026.6',
+                            '1.병원정보서비스(2026.6.).xlsx'))
+F_PHARM = _find(os.path.join(SCRATCH, 'hosp', '2.약국정보서비스(2026.6.).xlsx'),
+                os.path.join(JARYO, '전국 병의원 및 약국 현황 2026.6',
+                             '2.약국정보서비스(2026.6.).xlsx'))
+F_WELFARE = _find(os.path.join(SCRATCH, 'shp', '부산광역시_장애인 복지시설 현황.dbf'),
+                  os.path.join(JARYO, '부산광역시_장애인복지시설_현황(SHP)_20250731',
+                               '부산광역시_장애인 복지시설 현황.dbf'))
+F_TOURISM = _find(os.path.join(DIVE, '한국문화정보원_전국 배리어프리 문화예술관광지_20221125.csv'),
+                  os.path.join(JARYO, '한국문화정보원_전국 배리어프리 문화예술관광지_20221125.csv'))
 F_DONGS_RAW = os.path.join(OUT, 'busan_dongs_raw.geojson')
 
 # Busan bbox used for coordinate sanity filters ([lng, lat] WGS84)
@@ -147,6 +174,24 @@ WHEELCHAIR_ANIM = {'수동': 1, '전동': 2}
 DOW_LABELS = ['월', '화', '수', '목', '금', '토', '일']
 
 
+def norm_disability(raw):
+    """Collapse the trips CSV's 장애유형 free-ish values into display groups.
+
+    지체/하지기능·지체/척추… all fold into 지체; 자폐/자폐성장애 → 자폐성.
+    Everything else (뇌병변, 시각, 신장, 65세이상, 일시적장애, …) stays as-is.
+    """
+    s = (raw or '').strip()
+    if not s:
+        return '미상'
+    if s.startswith('지체'):
+        return '지체'
+    if s.startswith('자폐'):
+        return '자폐성'
+    if s == '지적장애':
+        return '지적'
+    return s
+
+
 def process_trips(dong_match):
     totals = {'trips': 0, 'completed': 0, 'unassigned': 0, 'cancelled': 0}
     waits_all = []
@@ -162,6 +207,10 @@ def process_trips(dong_match):
     anim = []
     unmet_cells = defaultdict(lambda: {'unassigned': 0, 'cancelled': 0})
     top_dest = Counter()
+    type_purpose = Counter()  # (장애유형 grouped, 목적) over ALL requests
+    # retry funnel: 미충족 접수 뒤 같은 ~100m 지점에서 60분 내 재접수가 있었는가
+    retry_cell_times = defaultdict(list)  # pickup cell → [접수 ts, …] (all requests)
+    unmet_events = []                     # (pickup cell, 접수 ts) for 미배차/취소
 
     m_stats = Counter()  # match bookkeeping
 
@@ -266,6 +315,8 @@ def process_trips(dong_match):
                 wheelchair['unknown'] += 1  # 기타 + blank
 
             purpose[(row['목적'] or '').strip() or '미상'] += 1
+            type_purpose[(norm_disability(row['장애유형']),
+                          (row['목적'] or '').strip() or '미상')] += 1
 
             o_feat = dong_match(row['출발지 행정동'])
             d_feat = dong_match(row['목적지 행정동'])
@@ -283,6 +334,12 @@ def process_trips(dong_match):
 
             o_xy = swap_coords(row['출발지 X좌표'], row['출발지 Y좌표'])
             d_xy = swap_coords(row['목적지 X좌표'], row['목적지 Y좌표'])
+
+            if o_xy and in_bbox(*o_xy) and t_req:
+                rcell = (round(o_xy[0], 3), round(o_xy[1], 3))
+                retry_cell_times[rcell].append(t_req)
+                if cat in ('unassigned', 'cancelled'):
+                    unmet_events.append((rcell, t_req))
 
             if cat == 'completed':
                 if o_feat is not None:
@@ -354,6 +411,8 @@ def process_trips(dong_match):
         'fleet_rows': fleet_rows, 'fleet_skipped': fleet_skipped,
         'ghosts': ghosts, 'dropoff_cells': dropoff_cells,
         'day_dong_drop': day_dong_drop, 'day_dong_unassigned': day_dong_unassigned,
+        'type_purpose': type_purpose, 'retry_cell_times': retry_cell_times,
+        'unmet_events': unmet_events,
     }
 
 
@@ -428,7 +487,26 @@ def load_welfare():
 
 
 def load_tourism():
-    """한국문화정보원 nationwide barrier-free 문화예술관광지 CSV, filtered to Busan."""
+    """한국문화정보원 nationwide barrier-free 문화예술관광지 CSV, filtered to Busan.
+
+    Fallback: when the raw CSV is absent on this machine, recover the tourism
+    POIs from the previously built infra_points.json (they are re-located to
+    dongs afterwards anyway) so the pipeline stays runnable on every teammate's
+    machine.
+    """
+    if not os.path.exists(F_TOURISM):
+        prev = os.path.join(OUT, 'infra_points.json')
+        pts = []
+        if os.path.exists(prev):
+            with open(prev, encoding='utf-8') as f:
+                for p in json.load(f):
+                    if p.get('type') == 'tourism':
+                        pts.append({'lng': p['lng'], 'lat': p['lat'],
+                                    'type': 'tourism', 'name': p['name'],
+                                    'detail': p.get('detail', '')})
+        report(f'tourism CSV missing → recovered {len(pts)} POIs from previous '
+               'infra_points.json')
+        return pts
     pts = []
     with open(F_TOURISM, encoding='utf-8-sig') as f:
         for row in csv.DictReader(f):
@@ -958,6 +1036,130 @@ def fmt_p(p):
     return round(p, 4)
 
 
+def chi2_sf_wh(x, k):
+    """Chi-square survival P(X > x) for any df k — Wilson–Hilferty normal approx."""
+    if x <= 0:
+        return 1.0
+    z = ((x / k) ** (1.0 / 3.0) - (1.0 - 2.0 / (9.0 * k))) / math.sqrt(2.0 / (9.0 * k))
+    return 0.5 * math.erfc(z / math.sqrt(2.0))
+
+
+def ols_loglog(xs, ys):
+    """Simple OLS y = a + b·x with Pearson r and its t-test (normal-approx p)."""
+    n = len(xs)
+    mx, my = sum(xs) / n, sum(ys) / n
+    sxx = sum((x - mx) ** 2 for x in xs)
+    syy = sum((y - my) ** 2 for y in ys)
+    sxy = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    slope = sxy / sxx
+    intercept = my - slope * mx
+    r = sxy / math.sqrt(sxx * syy)
+    t = r * math.sqrt((n - 2) / max(1e-12, 1.0 - r * r))
+    p = math.erfc(abs(t) / math.sqrt(2.0))
+    return slope, intercept, r, t, p
+
+
+# Fixed purpose columns for the 장애유형×목적 crosstab; the long tail
+# (통학·쇼핑·친구/친지·미상 …) folds into '그 외'. '기타' stays its own column —
+# it is 57% of trips and carries its own story (투석의원 등 재분류 후보).
+PURPOSE_COLS = ['병원', '귀가', '여가', '단체/복지관', '출퇴근', '기타']
+TYPE_TOP_K = 6
+
+
+def crosstab_type_purpose(type_purpose):
+    """장애유형 × 목적 independence test on the grouped contingency table.
+
+    Rows = top-K disability groups + '그 외 유형', cols = PURPOSE_COLS + '그 외'.
+    Returns the full matrix (for the UI heatmap) plus chi2/df/p/Cramér's V and
+    the strongest positive adjusted-residual cells outside 기타/그 외 (for the
+    headline finding).
+    """
+    type_tot = Counter()
+    for (ty, _), c in type_purpose.items():
+        type_tot[ty] += c
+    types = [ty for ty, _ in type_tot.most_common(TYPE_TOP_K)]
+    rows = types + ['그 외 유형']
+    purposes = PURPOSE_COLS + ['그 외']
+    counts = [[0] * len(purposes) for _ in rows]
+    for (ty, pu), c in type_purpose.items():
+        i = rows.index(ty) if ty in types else len(rows) - 1
+        j = purposes.index(pu) if pu in PURPOSE_COLS else len(purposes) - 1
+        counts[i][j] += c
+    n = sum(map(sum, counts))
+    row_tot = [sum(r) for r in counts]
+    col_tot = [sum(counts[i][j] for i in range(len(rows))) for j in range(len(purposes))]
+    chi2 = 0.0
+    cells = []  # (adj residual, row, col, row share, overall col share)
+    for i in range(len(rows)):
+        for j in range(len(purposes)):
+            e = row_tot[i] * col_tot[j] / n
+            if e <= 0:
+                continue
+            chi2 += (counts[i][j] - e) ** 2 / e
+            adj = (counts[i][j] - e) / math.sqrt(
+                e * (1 - row_tot[i] / n) * (1 - col_tot[j] / n))
+            cells.append((adj, rows[i], purposes[j],
+                          counts[i][j] / row_tot[i], col_tot[j] / n))
+    df = (len(rows) - 1) * (len(purposes) - 1)
+    highlight = [c for c in sorted(cells, key=lambda c: -c[0])
+                 if c[2] not in ('기타', '그 외')][:3]
+    return {'rows': rows, 'purposes': purposes, 'counts': counts,
+            'rowTotals': row_tot, 'colTotals': col_tot, 'n': n,
+            'chi2': chi2, 'df': df, 'p': chi2_sf_wh(chi2, df),
+            'v': math.sqrt(chi2 / (n * min(len(rows) - 1, len(purposes) - 1))),
+            'highlight': highlight}
+
+
+def retry_funnel(retry_cell_times, unmet_events, window_min=60):
+    """미충족(미배차·취소) 후 같은 ~100m 지점에서 window_min 내 재접수 여부.
+
+    재접수 없음 = 그날 그 자리의 외출 포기로 '추정'하는 proxy (동일인 미보장 —
+    비식별 이용자 ID가 오면 정식 산출로 승격). Aggregate counts only.
+    """
+    times_sorted = {c: sorted(ts) for c, ts in retry_cell_times.items()}
+    retried, gaps = 0, []
+    for cell, t0 in unmet_events:
+        ts = times_sorted.get(cell)
+        if not ts:
+            continue
+        i = bisect_right(ts, t0)
+        if i < len(ts):
+            gap = (ts[i] - t0).total_seconds() / 60.0
+            if 0 < gap <= window_min:
+                retried += 1
+                gaps.append(gap)
+    unmet = len(unmet_events)
+    gaps.sort()
+    return {'unmet': unmet, 'retried': retried, 'abandoned': unmet - retried,
+            'retryShare': retried / unmet if unmet else 0.0,
+            'medianGapMin': round(percentile(gaps, 0.5), 1) if gaps else None,
+            'windowMin': window_min}
+
+
+def wait_histogram(surv, bin_min=5, cap_min=60):
+    """접수→배차 대기(분) histogram, 수동 vs 전동, shares within each group."""
+    n_bins = cap_min // bin_min
+    hm, he = Counter(), Counter()
+    n_m = n_e = 0
+    for d, e, w in surv:
+        if not e or w not in ('수동', '전동'):
+            continue
+        b = min(int(d // bin_min), n_bins)  # last bin = cap 이상
+        if w == '수동':
+            hm[b] += 1
+            n_m += 1
+        else:
+            he[b] += 1
+            n_e += 1
+    bins = []
+    for b in range(n_bins + 1):
+        label = f'{cap_min}+' if b == n_bins else f'{b * bin_min}–{(b + 1) * bin_min}'
+        bins.append({'label': label,
+                     'manual': round(hm[b] / n_m, 4) if n_m else 0,
+                     'electric': round(he[b] / n_e, 4) if n_e else 0})
+    return {'binMinutes': bin_min, 'nManual': n_m, 'nElectric': n_e, 'bins': bins}
+
+
 # ---------------------------------------------------------------------------
 # 11. Derived gap metrics (placeholder formula — see README.md)
 # ---------------------------------------------------------------------------
@@ -1217,6 +1419,35 @@ def main():
         report(f"  greedy cumShare: {[g['cumShare'] for g in deserts['greedy']]}")
     dump_json('arrival_deserts.json', deserts)
 
+    # --- correlation, 유형×목적 crosstab, retry funnel, wait histogram ---
+    report('=== extra models ===')
+    xs_log = [math.log10(shops_counts[i] + 1) for i in range(len(feats))]
+    ys_log = [math.log10(demand_vals[i] + 1) for i in range(len(feats))]
+    c_slope, c_icpt, c_r, c_t, c_p = ols_loglog(xs_log, ys_log)
+    c_resid = [ys_log[i] - (c_icpt + c_slope * xs_log[i]) for i in range(len(feats))]
+    resid_top = sorted(range(len(feats)), key=lambda i: -c_resid[i])[:4]
+    resid_label = ' · '.join(
+        f"{feats[i]['properties']['_short']} +{c_resid[i]:.2f}" for i in resid_top)
+    report(f'  correlation: r={c_r:.3f} t={c_t:.1f} p={c_p:.2e} | resid top: {resid_label}')
+
+    ct = crosstab_type_purpose(T['type_purpose'])
+    hl = ct['highlight'][0]  # (adj, type, purpose, row share, overall share)
+    report(f"  type×purpose: chi2={ct['chi2']:.0f} df={ct['df']} V={ct['v']:.3f} | "
+           f"top cell {hl[1]}×{hl[2]} {hl[3] * 100:.1f}% vs overall {hl[4] * 100:.1f}%")
+
+    fun = retry_funnel(T['retry_cell_times'], T['unmet_events'])
+    report(f"  retry funnel: unmet {fun['unmet']:,} → retried {fun['retried']:,} "
+           f"({fun['retryShare'] * 100:.1f}%) → abandoned {fun['abandoned']:,} "
+           f"| median gap {fun['medianGapMin']}min")
+
+    whist = wait_histogram(T['surv'])
+    dump_json('model_charts.json', {
+        'waitHist': whist,
+        'typePurpose': {'rows': ct['rows'], 'purposes': ct['purposes'],
+                        'counts': ct['counts'], 'rowTotals': ct['rowTotals'],
+                        'colTotals': ct['colTotals'], 'n': ct['n']},
+    }, compact=False)
+
     # --- model_results.json (REHEARSAL — real fits on May citywide data) ---
     j_ch = var_names.index('chargers')
     logs_manual = [math.log(d) for d, e, w in T['surv'] if e and w == '수동']
@@ -1240,7 +1471,47 @@ def main():
         nb_numbers[f'irr_{vn}_hi'] = round(nb['hi'][j], 4)
         nb_numbers[f'p_{vn}'] = fmt_p(nb['p'][j])
 
+    # Presentation order = the pitch's narrative: 문제 규모(깔때기) → 통제 필요성
+    # (상관·잔차) → 통제 후 효과(음이항) → 맞춤 근거(유형×목적) → 형평(Welch t)
+    # → 시간대 편중(χ²) → 순위 신뢰도(부트스트랩).
     model_results = [
+        {'id': 'retry-funnel',
+         'name': '깔때기 — 사라진 외출 (미충족 후 재시도)',
+         'status': 'rehearsal',
+         'headline': (f"미충족 {fun['unmet']:,}건 중 60분 내 같은 지점 재접수는 "
+                      f"{fun['retryShare'] * 100:.0f}% — 나머지 "
+                      f"{fun['abandoned']:,}건은 그 자리 외출 포기로 추정"),
+         'detail': ('미배차·취소로 끝난 접수 각각에 대해, 같은 ~100m 지점에서 60분 '
+                    '내 다른 접수가 이어졌는지 확인했다(재접수 간격 중앙값 '
+                    f"{fun['medianGapMin']}분). 재접수가 없는 건은 대체수단 이용 "
+                    '또는 외출 포기로 추정한다. 서비스 개선의 목표지표를 "탑승 '
+                    '건수"가 아니라 "포기율"로 재정의하는 근거다.'),
+         'numbers': {'requests': T['totals']['trips'],
+                     'unmet': fun['unmet'], 'retried': fun['retried'],
+                     'abandoned': fun['abandoned'],
+                     'retry_share': round(fun['retryShare'], 3),
+                     'median_retry_gap_min': fun['medianGapMin']},
+         'caveats': ('"포기"는 지점·시간 기반 추정 — 다른 위치 재호출, 가족 차량 '
+                     '이용 가능성 존재(동일인 여부 확인 불가). 좌표 없는 미충족 '
+                     '건은 제외. 본선 비식별 ID 확보 시 정식 산출로 승격.')},
+        {'id': 'correlation',
+         'name': '상관·잔차 — 수요는 상권을 따라가는가',
+         'status': 'rehearsal',
+         'headline': (f'log수요 ~ log상가 r={c_r:.3f} '
+                      f'(t={c_t:.1f}, p={fmt_p(c_p)}) — 상권이 클수록 수요도 많다'),
+         'detail': ('행정동 206개의 하차 건수와 상가 수를 각각 log10(x+1) 변환해 '
+                    '피어슨 상관과 단순회귀선을 적합했다. 상관이 유의하므로 "상권 '
+                    '효과를 걷어내야 인프라의 순효과가 보인다"는 음이항 회귀 설계가 '
+                    '정당화된다. 회귀선 위로 크게 벗어난 잔차 상위 동'
+                    f'({resid_label})은 상권 규모로 설명되지 않는 교통약자 특수 '
+                    '수요지(재활원·복지관·요양병원 밀집 추정)다.'),
+         'numbers': {'n': len(feats), 'pearson_r': round(c_r, 3),
+                     't': round(c_t, 1), 'p': fmt_p(c_p),
+                     'slope': round(c_slope, 4), 'intercept': round(c_icpt, 4),
+                     'resid_top': resid_label},
+         'caveats': ('log-log 척도의 선형 연관이며 인과가 아님. 잔차 상위 동의 '
+                     '원인은 현장 확인 필요 — 본선에서 해당 동 주요 하차지점 '
+                     '리스트업 예정.')},
         {'id': 'nb-regression',
          'name': '음이항 회귀 — 인프라와 하차 수요 (리허설)',
          'status': 'rehearsal',
@@ -1254,6 +1525,28 @@ def main():
          'numbers': nb_numbers,
          'caveats': ('연관성 추정이며 인과가 아님. 노출변수는 리허설 프록시(상가수+1) — '
                      '본선에서 장애인등록 인구로 교체.')},
+        {'id': 'chi-square-type-purpose',
+         'name': '카이제곱 — 장애유형과 이동 목적',
+         'status': 'rehearsal',
+         'headline': (f'{hl[1]}×{hl[2]} 비중 {hl[3] * 100:.1f}% — 전체 평균 '
+                      f'{hl[4] * 100:.1f}%의 {hl[3] / hl[4]:.1f}배 '
+                      f"(χ²={ct['chi2']:.0f}, p={fmt_p(ct['p'])})"),
+         'detail': ('장애유형(상위 6그룹+그 외)과 이동 목적(7구분)의 독립성을 '
+                    f"검정했다. χ²={ct['chi2']:.1f}, df={ct['df']}, "
+                    f"Cramér's V={ct['v']:.3f}. 유형이 다르면 가는 곳이 다르다 — "
+                    + ' / '.join(f'{c[1]}×{c[2]} {c[3] * 100:.1f}%'
+                                 for c in ct['highlight'])
+                    + '. "장애유형별 맞춤 안내"(어디든 두가자 핵심 기능)가 부가 '
+                    '기능이 아니라 데이터가 요구하는 설계 원리임을 보여준다.'),
+         'numbers': {'chi2': round(ct['chi2'], 1), 'df': ct['df'],
+                     'p': fmt_p(ct['p']), 'cramers_v': round(ct['v'], 3),
+                     'n': ct['n'],
+                     'top_cells': ' / '.join(
+                         f'{c[1]}×{c[2]} {c[3] * 100:.1f}% (평균 {c[4] * 100:.1f}%)'
+                         for c in ct['highlight'])},
+         'caveats': ("목적 '기타'가 57%로 과다 — 본선에서 좌표 기반 재분류(병원 "
+                     "목적의 84.2%가 병의원 200m 내 하차 검증 완료) 후 재검정. "
+                     '지체/하위유형은 지체로 병합 집계.')},
         {'id': 'welch-t',
          'name': 'Welch t — 수동 vs 전동 휠체어 배차 대기 (로그 척도)',
          'status': 'rehearsal',

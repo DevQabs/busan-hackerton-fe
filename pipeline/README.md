@@ -153,6 +153,39 @@ share of replicates where the dong ranks in the top 5.
   survival `P(X>x) = erfc(√(x/2)) + √(2x/π)·e^(−x/2)`, Cramér's V, adjusted
   standardized residuals per cell.
 
+### Correlation & residuals (`model_results` correlation)
+
+Pearson r + simple OLS on `log10(dropoffs+1) ~ log10(shops+1)` over all 206
+dongs; t = r·√((n−2)/(1−r²)), normal-approx p. Top-4 positive residual dongs
+(모라3동·동삼3동·학장동·아미동 on the May data) go into `numbers.resid_top`;
+the UI recomputes the scatter points client-side from dongs.geojson using
+`numbers.slope` / `numbers.intercept`, so no point list is shipped.
+
+### 장애유형 × 목적 chi-square (`model_results` chi-square-type-purpose, `model_charts.typePurpose`)
+
+All 37,512 requests. 장애유형 grouped by `norm_disability` (지체/* → 지체,
+자폐* → 자폐성), rows = top-6 groups + 그 외 유형; purposes = fixed 6 columns
+(병원/귀가/여가/단체·복지관/출퇴근/기타) + 그 외. Chi-square over the grouped
+matrix, df = (R−1)(C−1) = 36, p via Wilson–Hilferty; the headline cell is the
+largest positive adjusted residual OUTSIDE 기타/그 외 (시각×출퇴근 on May
+data). Full matrix ships in `model_charts.json` for the heatmap.
+
+### Retry funnel (`model_results` retry-funnel)
+
+For each unmet request (미배차/취소) with valid pickup coords: was there ANY
+request from the same 3-decimal (~100 m) pickup cell within 60 min after it?
+Yes → "재접수", no → "포기 추정" (proxy — same-person not guaranteed; stated
+in caveats). Bisect over per-cell sorted 접수 timestamps; strictly later
+timestamps only. May data: 4,985 unmet → 46.5% retried, 2,667 abandoned.
+
+### model_charts.json
+
+Chart-only datasets the UI cannot derive from other artifacts (they need raw
+trip rows): `waitHist` (접수→배차 wait, 5-min bins 0–60 + "60+" cap bin,
+shares WITHIN each wheelchair group) and `typePurpose` (the crosstab above).
+Regenerated together with model_results.json; at the finals both are replaced
+by the recomputed versions (UI untouched).
+
 ## Other artifact notes
 
 - `od.json`: completed trips with both endpoints matched, pairs with

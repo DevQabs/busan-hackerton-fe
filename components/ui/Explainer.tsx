@@ -10,11 +10,13 @@ export function Explainer({
   how,
   caveats,
   defaultOpen = false,
+  title = "이 화면 읽는 법",
 }: {
   what: ReactNode;
   how: ReactNode;
   caveats: ReactNode;
   defaultOpen?: boolean;
+  title?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -30,7 +32,7 @@ export function Explainer({
           <span className="flex h-4 w-4 items-center justify-center rounded-full border border-accent/50 text-[10px] font-bold text-accent">
             ?
           </span>
-          이 화면 읽는 법
+          {title}
         </span>
         <span className="text-[11px] text-dim">{open ? "접기" : "펼치기"}</span>
       </button>
