@@ -13,7 +13,8 @@ export type SceneId =
   | "priority"
   | "models"
   | "tourism"
-  | "welfare";
+  | "welfare"
+  | "disability";
 
 export interface SceneDef {
   id: SceneId;
@@ -35,4 +36,5 @@ export const SCENES: SceneDef[] = [
   { id: "models", label: "통계 모델", caption: "분석 결과 카드" },
   { id: "tourism", label: "관광지 사각지대", caption: "검색·개장시간 필터 · 베리어프리 커버리지" },
   { id: "welfare", label: "장애유형별 복지 프로그램", caption: "5개구 장애인복지관 운영 프로그램 현황" },
+  { id: "disability", label: "장애인 수요 분석", caption: "등록 장애인 × 두리발 이용 갭" },
 ];

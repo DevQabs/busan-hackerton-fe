@@ -207,6 +207,7 @@ export const DATA = {
   modelResults: "/data/model_results.json",
   tourism: "/data/tourism.json",
   welfarePrograms: "/data/welfare_programs.json",
+  disability: "/data/disability.json",
 } as const;
 
 /** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
@@ -347,3 +348,55 @@ export const DISABILITY_TYPES = [
   "신장", "심장", "호흡기", "간", "안면", "장루_요루", "뇌전증",
 ] as const;
 export type DisabilityType = (typeof DISABILITY_TYPES)[number];
+
+/** public/data/disability.json — 구·군별 장애인 등록현황(잠재 수요) × 두리발
+ *  완료 운행(실제 이용) 교차 집계 ("장애인 수요 분석").
+ *  Built by scripts/build_disability.mjs from 9개 구·군 등록현황 CSV(스키마
+ *  제각각, CP949)와 두리발 운영 로그(2025-05). 값이 원자료에 없는 필드는 null. */
+export interface DisabilityTypeStat {
+  type: string;          // 장애유형 15종 (지체·시각·…·뇌전증)
+  total: number | null;  // 강서구 언어: 청각(언어) 병합 표기라 null
+  severe: number | null; // 심한 장애 — 유형별 정도 미제공 구(사하·강서)는 null
+  mild: number | null;   // 심하지 않은 장애
+  male: number | null;   // 성별 미제공 구(북·사하·강서)는 null
+  female: number | null;
+}
+
+export interface DisabilityGu {
+  gu: string;
+  /** false = 등록현황 미공개 7개 구·군 (서·부산진·동래·해운대·금정·연제·수영) */
+  hasRegistry: boolean;
+  asOf: string | null;        // 등록현황 기준일 (남구는 기준일 미상 → null)
+  registered: number | null;  // 등록 장애인 총수
+  severe: number | null;
+  mild: number | null;
+  male: number | null;
+  female: number | null;
+  /** 강서구: 원자료가 청각·언어를 "청각(언어)"로 병합 → 청각에 계상 */
+  hearingMerged: boolean;
+  byType: DisabilityTypeStat[]; // hasRegistry=false면 빈 배열
+  // --- 두리발 이용 (2025-05, 출발지 구 기준, 완료 운행만) ---
+  trips: number;
+  /** 로그 장애유형이 등록 15종에 매핑되는 운행 (65세이상·일시적 등 제외) */
+  tripsDisabled: number;
+  /** 이용자 ID가 없어 (출발좌표+유형+등급+휠체어) 조합으로 근사한 추정치 */
+  estUsers: number;
+  /** 등록 장애인 1,000명당 월 이용 건수 = trips / registered × 1000.
+   *  건수 지표(비율 아님 — 한 사람이 여러 번 이용). hasRegistry=false → null */
+  tripsPer1k: number | null;
+}
+
+export interface DisabilityData {
+  period: string; // 두리발 로그 기간, "2025-05"
+  totals: {
+    registeredKnown: number;  // 등록현황 보유 9개 구·군 합계
+    guWithRegistry: number;
+    completedTrips: number;   // 결과=하차, 32,526
+    tripsFromBusan: number;   // 출발지 행정동이 부산 구·군으로 매핑된 건
+    tripsOutside: number;     // 관외(경남 등) 출발
+  };
+  /** 시 전체 유형별 등록(9개 구 합) vs 이용 비교. "기타 교통약자"(65세이상·
+   *  일시적장애 등 비장애 교통약자)는 registered=null로 이용만 집계. */
+  typeTotals: { type: string; registered: number | null; trips: number }[];
+  gus: DisabilityGu[]; // 16개 구·군 전부, trips 내림차순
+}

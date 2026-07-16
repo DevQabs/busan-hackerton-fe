@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "build:tourism": "node scripts/build_tourism.mjs"
+    "build:tourism": "node scripts/build_tourism.mjs",
+    "build:disability": "node scripts/build_disability.mjs"
   },
   "dependencies": {
     "deck.gl": "^9.1.0",
