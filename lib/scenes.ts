@@ -8,6 +8,7 @@ export type SceneId =
   | "od"
   | "gap"
   | "deserts"
+  | "last400"
   | "unmet"
   | "infra"
   | "priority"
@@ -33,6 +34,7 @@ export const SCENES: SceneDef[] = [
   { id: "od", label: "OD 흐름", caption: "행정동 간 이동 경로" },
   { id: "gap", label: "사각지대 분석", caption: "수요 × 인프라 격차" },
   { id: "deserts", label: "도착지 사각지대", caption: "하차 후 시설 공백 250m 격자" },
+  { id: "last400", label: "도착 이후 400m", caption: "무장애가게 실사 × 하차 — 진입 사슬 격차" },
   { id: "unmet", label: "미충족 수요", caption: "미배차·취소 밀집 지역" },
   { id: "infra", label: "인프라 지도", caption: "무장애 시설 분포" },
   { id: "priority", label: "우선순위·시뮬레이션", caption: "개선 투자 효과 미리보기" },

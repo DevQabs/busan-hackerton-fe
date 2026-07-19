@@ -10,6 +10,7 @@ import { DemandScene } from "@/components/scenes/DemandScene";
 import { FlowScene } from "@/components/scenes/FlowScene";
 import { ForensicsScene } from "@/components/scenes/ForensicsScene";
 import { DesertsScene } from "@/components/scenes/DesertsScene";
+import { Last400Scene } from "@/components/scenes/Last400Scene";
 import { OdScene } from "@/components/scenes/OdScene";
 import { GapScene } from "@/components/scenes/GapScene";
 import { UnmetScene } from "@/components/scenes/UnmetScene";
@@ -34,6 +35,7 @@ export default function Dashboard() {
       {scene === "flow" && <FlowScene onMapSpec={onMapSpec} />}
       {scene === "forensics" && <ForensicsScene onMapSpec={onMapSpec} />}
       {scene === "deserts" && <DesertsScene onMapSpec={onMapSpec} />}
+      {scene === "last400" && <Last400Scene onMapSpec={onMapSpec} />}
       {scene === "od" && <OdScene onMapSpec={onMapSpec} />}
       {scene === "gap" && <GapScene onMapSpec={onMapSpec} />}
       {scene === "unmet" && <UnmetScene onMapSpec={onMapSpec} />}

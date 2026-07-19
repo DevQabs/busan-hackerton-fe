@@ -801,6 +801,12 @@ def build_arrival_deserts(dropoff_cells, infra_pts, locator, share_by_cd, share_
             continue
         lng = round((ix + 0.5) * LNG_STEP, 5)
         lat = round((iy + 0.5) * LAT_STEP, 5)
+        # Strict Busan clip: a dropoff cell outside every 행정동 polygon is out of
+        # scope (양산/김해 경계 운행 등) — drop it instead of ranking a cell that
+        # resolves to no dong (previously the unexplained #1 arrival desert).
+        feat = locator.locate(lng, lat)
+        if feat is None:
+            continue
         ch = nearest_m(lng, lat, charger_pts)
         ho = nearest_m(lng, lat, hospital_pts)
         we = nearest_m(lng, lat, welfare_pts)
@@ -818,9 +824,8 @@ def build_arrival_deserts(dropoff_cells, infra_pts, locator, share_by_cd, share_
         if we is None or we > 1000:
             lack.append('복지시설 1km 밖')
             weight += 0.5
-        feat = locator.locate(lng, lat)
-        dong = feat['properties']['_short'] if feat is not None else None
-        floor1 = share_by_cd.get(feat['properties']['_admCd']) if feat is not None else None
+        dong = feat['properties']['_short']
+        floor1 = share_by_cd.get(feat['properties']['_admCd'])
         if floor1 is not None and share_median is not None and floor1 < share_median:
             lack.append('1층 상가 비율 낮음')
             weight += 0.5
@@ -829,9 +834,7 @@ def build_arrival_deserts(dropoff_cells, infra_pts, locator, share_by_cd, share_
             continue
         cell = {'lng': lng, 'lat': lat, 'dropoffs': cnt,
                 'nearestM': {'charger': ch, 'hospital': ho, 'welfare': we},
-                'lack': lack, 'score': round(score, 1)}
-        if dong is not None:
-            cell['dong'] = dong
+                'lack': lack, 'score': round(score, 1), 'dong': dong}
         cells.append(cell)
 
     cells.sort(key=lambda c: (-c['score'], -c['dropoffs']))

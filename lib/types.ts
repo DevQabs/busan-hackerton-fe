@@ -149,6 +149,41 @@ export interface ArrivalDeserts {
   greedy: DesertGreedyPick[]; // K sequential picks (K ~10)
 }
 
+/** public/data/access_actions.json — "도착 이후 400m": 윌체어 무장애가게 12개 Y/N
+ *  실사 × 두리발 하차를 겹쳐, 도착 이후 '들어갈 수 있는 선택지'와 사슬이 끊기는
+ *  지점(Barrier DNA)을 본다. 현재 해운대구 송정동 표본(2026 DIVE 샘플).
+ *  좌표는 [lng, lat] (GeoJSON order). */
+export interface AccessShop {
+  name: string;
+  cat: string;   // 업종 중분류
+  lng: number;
+  lat: number;
+  /** 12 감사 항목 원자료: 일층·경사로·입구턱·입구무턱·테이블석·화장실턱·화장실무턱·
+   *  장애인화장실·엘리베이터·주차장·장애인주차장·테이크아웃 */
+  fields: Record<string, "Y" | "N">;
+  enterable: boolean; // 진입 가능 (hard gate 통과: 입구 + 층)
+  usable: boolean;    // 내부 이용 가능 (+테이블석)
+  comfort: boolean;   // 완비 (+장애인화장실)
+  /** 지배적 broken-link: 입구(진입) | 층이동 | 내부이용 | 편의(화장실) | 완비 */
+  barrier: string;
+  cls: "good" | "warning" | "critical"; // 완비 | 진입가능·미완비 | 진입불가
+  /** 반경 catchmentM 내 두리발 하차의 거리가중 합 (개선 impact 가중치) */
+  nearbyArrivals: number;
+}
+export interface AccessActions {
+  meta: { period: string; scope: string; catchmentM: number; note: string };
+  shops: AccessShop[];
+  dropoffs: [number, number][]; // completed 하차, [lng, lat], rounded
+  summary: {
+    arrivals: number;
+    shops: number;
+    enterable: number;
+    usable: number;
+    comfort: number;
+    barrierDNA: Record<string, number>;
+  };
+}
+
 /** public/data/infra_points.json — infrastructure POI layer. */
 export interface InfraPoint {
   lng: number;
@@ -229,6 +264,7 @@ export const DATA = {
   ghosts: "/data/ghosts.json",
   waitKm: "/data/wait_km.json",
   arrivalDeserts: "/data/arrival_deserts.json",
+  accessActions: "/data/access_actions.json",
   unmet: "/data/unmet.json",
   infraPoints: "/data/infra_points.json",
   toiletsGu: "/data/toilets_gu.json",

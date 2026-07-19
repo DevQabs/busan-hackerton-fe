@@ -3,3 +3,7 @@ node_modules/
 .npm-cache/
 *.log
 *.tsbuildinfo
+__pycache__/
+
+# Raw hackathon inputs + finals sample (organizer data — not committed)
+/data/
