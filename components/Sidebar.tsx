@@ -61,7 +61,7 @@ export function Sidebar({
       </ol>
 
       <footer className="border-t border-line px-4 py-3 text-[10px] leading-4 text-dim">
-        DIVE 2026 · 아마란스H
+        DIVE 2026
         <br />
         데이터: 부산시설공단·윌체어·공공데이터포털
       </footer>
