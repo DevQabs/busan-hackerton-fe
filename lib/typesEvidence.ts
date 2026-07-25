@@ -14,6 +14,15 @@ export interface DispatchHourly {
   unassignedRate: number; // 0–1
   avgActive: number; // 해당 시각 동시 진행 운행 건수(일 평균) — 차량 ID 없음, 하한 추정
   maxActive: number;
+  /** 접수→배차 중앙값(분), 배차 성공 건 — 화면 미표시, Q&A용 */
+  p50AssignMin: number | null;
+}
+
+export interface DispatchMonthly {
+  ym: string; // "2025-03"
+  requests: number;
+  unassigned: number;
+  unassignedRate: number; // 0–1
 }
 
 export interface HaeundaeDispatch {
@@ -30,6 +39,7 @@ export interface HaeundaeDispatch {
     cancelled: number;
   };
   hourly: DispatchHourly[]; // 24 entries
+  monthly: DispatchMonthly[]; // 13 entries (2025-03 ~ 2026-03)
 }
 
 export interface HospitalDistanceBin {

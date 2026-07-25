@@ -34,6 +34,7 @@ import {
   DATA_HAEUNDAE_DISPATCH,
   DATA_HOSPITAL_DISTANCE,
   type DispatchHourly,
+  type DispatchMonthly,
   type HaeundaeDispatch,
   type HospitalDistance,
   type HospitalDistanceDong,
@@ -51,7 +52,7 @@ import {
   TOOLTIP_ITEM_STYLE,
   TOOLTIP_LABEL_STYLE,
 } from "@/components/charts/theme";
-import { ActionCard, Chip } from "@/components/PresentationLayoutWide";
+import { ActionCard, Chip, KpiTile } from "@/components/PresentationLayoutWide";
 import { DataPending } from "@/components/ui/DataPending";
 import { fmt, pct } from "@/lib/format";
 import { HEX, RGB_UNMET } from "@/lib/palette";
@@ -107,15 +108,17 @@ function StatusBadge({ status }: { status?: ModelResult["status"] }) {
   return null;
 }
 
-/** 탭 블록 셸 — 차트(좌) : 해석(우) = 3:2. */
+/** 탭 블록 셸 — 상단 KPI 밴드(선택) + 차트(좌) : 해석(우) = 3:2. */
 function BlockShell({
   title,
   badge,
+  kpis,
   chart,
   panel,
 }: {
   title: string;
   badge?: ReactNode;
+  kpis?: ReactNode;
   chart: ReactNode;
   panel: ReactNode;
 }) {
@@ -125,6 +128,11 @@ function BlockShell({
         <h2 className="text-[13px] font-bold leading-5 text-ink">{title}</h2>
         {badge}
       </header>
+      {kpis && (
+        <div className="flex flex-wrap gap-2 border-b border-line px-3 py-2.5">
+          {kpis}
+        </div>
+      )}
       <div className="grid grid-cols-[3fr_2fr] gap-3 p-3">
         <div className="min-w-0">{chart}</div>
         <div className="min-w-0">{panel}</div>
@@ -303,6 +311,52 @@ function DispatchHourlyCharts({
         {hidden.length > 0 &&
           ` · 표본 ${MIN_HOUR_SAMPLE}건 미만인 ${hidden.join("·")}는 비율이 튀어 미배차율을 표시하지 않음`}
       </p>
+    </div>
+  );
+}
+
+/** 월별 미배차율 — 특정 달의 문제가 아니라 1년 내내 이어지는 구조임을 보인다 */
+function MonthlyRateChart({ rows }: { rows: DispatchMonthly[] }) {
+  const data = rows.map((m) => ({
+    ...m,
+    label: `${m.ym.slice(2, 4)}.${m.ym.slice(5)}`, // "25.03"
+    rate: +(m.unassignedRate * 100).toFixed(1),
+  }));
+  return (
+    <div className="mt-2">
+      <div className="text-[10px] font-semibold leading-4 text-dim">
+        월별 미배차율 (2025-03 ~ 2026-03) — 특정 달의 문제가 아니다
+      </div>
+      <div style={{ height: 110 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
+            <XAxis
+              dataKey="label"
+              tick={{ ...TICK, fontSize: 9 }}
+              interval={1}
+              tickLine={false}
+              axisLine={{ stroke: "var(--line)" }}
+            />
+            <YAxis
+              tick={TICK}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v: number) => `${v}%`}
+            />
+            <Tooltip
+              cursor={CURSOR_FILL}
+              contentStyle={TOOLTIP_CONTENT_STYLE}
+              labelStyle={TOOLTIP_LABEL_STYLE}
+              itemStyle={TOOLTIP_ITEM_STYLE}
+              formatter={(v: number, _n, item) => [
+                `${v}% (접수 ${fmt(item?.payload?.requests ?? 0)}건 중 ${fmt(item?.payload?.unassigned ?? 0)}건)`,
+                "미배차율",
+              ]}
+            />
+            <Bar dataKey="rate" fill={HEX.warn} fillOpacity={0.7} radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -542,28 +596,32 @@ export function StatisticalEvidenceScene({
     const lo = num(n, `irr_${def.irrKey}_lo`);
     const hi = num(n, `irr_${def.irrKey}_hi`);
     if (irr === null || lo === null || hi === null) return null;
+    const rows = compare.data.dongs
+      .map((e) => {
+        const g = hwGeoBy.get(e.name);
+        const cnt = facility === "charger" ? e.fac.charger : (g?.welfare ?? 0);
+        const monthly = e.completed / 13; // 13개월 합 → 월평균 (표기용 나눗셈)
+        return {
+          name: e.name,
+          cnt,
+          monthly,
+          gain: monthly * (irr - 1),
+          gainLo: monthly * (lo - 1),
+          gainHi: monthly * (hi - 1),
+        };
+      })
+      .sort((a, b) => a.cnt - b.cnt || b.monthly - a.monthly);
+    const zero = rows.filter((r) => r.cnt === 0);
     return {
       irr,
       lo,
       hi,
       p: pLabel(n, `p_${def.irrKey}`),
-      rows: compare.data.dongs
-        .map((e) => {
-          const g = hwGeoBy.get(e.name);
-          const cnt =
-            facility === "charger" ? e.fac.charger : (g?.welfare ?? 0);
-          const monthly = e.completed / 13; // 13개월 합 → 월평균 (표기용 나눗셈)
-          return {
-            name: e.name,
-            cnt,
-            monthly,
-            gain: monthly * (irr - 1),
-            gainLo: monthly * (lo - 1),
-            gainHi: monthly * (hi - 1),
-          };
-        })
-        .sort((a, b) => a.cnt - b.cnt || b.monthly - a.monthly)
-        .slice(0, 8),
+      rows,
+      zeroCount: zero.length,
+      zeroSum: zero.reduce((s, r) => s + r.gain, 0),
+      zeroSumLo: zero.reduce((s, r) => s + r.gainLo, 0),
+      zeroSumHi: zero.reduce((s, r) => s + r.gainHi, 0),
     };
   }, [compare.data, nb, facility, hwGeoBy]);
 
@@ -671,9 +729,50 @@ export function StatisticalEvidenceScene({
           <BlockShell
             title="미배차 통계 — 시간대별 운행대수와 미배차 확률"
             badge={<StatusBadge status={disp.data?.meta.status} />}
+            kpis={
+              disp.data && (
+                <>
+                  <KpiTile
+                    label="접수 (13개월)"
+                    value={fmt(disp.data.totals.requests)}
+                    sub="본선 해운대 전수"
+                    color={HEX.demand}
+                  />
+                  <KpiTile
+                    label="미배차"
+                    value={fmt(disp.data.totals.unassigned)}
+                    sub={`접수의 ${pct(avgRate, 1)}`}
+                    color={HEX.unmet}
+                  />
+                  <KpiTile
+                    label="완료(하차)"
+                    value={fmt(disp.data.totals.completed)}
+                    sub="배차 후 탑승·도착"
+                    color={HEX.infra}
+                  />
+                  <KpiTile
+                    label="취소"
+                    value={fmt(disp.data.totals.cancelled)}
+                    sub="미배차와 일부 겹침"
+                    color={HEX.warn}
+                  />
+                  {peakHour && (
+                    <KpiTile
+                      label="최악 시간대"
+                      value={`${peakHour.hour}시 ${pct(peakHour.unassignedRate, 0)}`}
+                      sub={`평균의 ${(peakHour.unassignedRate / avgRate).toFixed(1)}배`}
+                      color={HEX.unmet}
+                    />
+                  )}
+                </>
+              )
+            }
             chart={
               disp.data ? (
-                <DispatchHourlyCharts rows={disp.data.hourly} avgRate={avgRate} />
+                <div>
+                  <DispatchHourlyCharts rows={disp.data.hourly} avgRate={avgRate} />
+                  <MonthlyRateChart rows={disp.data.monthly} />
+                </div>
               ) : (
                 <DataPending note="haeundae_dispatch.json 대기 중 — analysis/build_dispatch_hourly.py 실행" />
               )
@@ -699,6 +798,13 @@ export function StatisticalEvidenceScene({
                         낮 피크(9시) 평균 동시 운행 9건 → 21시 0건 수준으로
                         급감 — 운행이 꺼지는 시간대에 미배차가 몰린다
                       </p>
+                      <p className="mt-1 text-[10.5px] leading-4 text-dim">
+                        월별 미배차율{" "}
+                        {pct(Math.min(...disp.data.monthly.map((m) => m.unassignedRate)), 1)}
+                        ~
+                        {pct(Math.max(...disp.data.monthly.map((m) => m.unassignedRate)), 1)}{" "}
+                        — 특정 달의 사고가 아니라 13개월 내내 이어지는 구조다
+                      </p>
                     </div>
                   ) : (
                     <span className="text-[11px] text-dim">데이터 준비 중</span>
@@ -716,6 +822,30 @@ export function StatisticalEvidenceScene({
           <BlockShell
             title="인프라 순효과 — 시설이 1개 늘면 방문이 얼마나 느는가"
             badge={<StatusBadge status={nb?.status} />}
+            kpis={
+              simRows && (
+                <>
+                  <KpiTile
+                    label={`${FAC_DEF[facility].label} IRR`}
+                    value={`×${simRows.irr.toFixed(2)}`}
+                    sub={simRows.p ?? "시설 1개당 방문 배율"}
+                    color={FAC_DEF[facility].color}
+                  />
+                  <KpiTile
+                    label={`${FAC_DEF[facility].label} 0개 동`}
+                    value={`${simRows.zeroCount}곳`}
+                    sub="해운대 18개 동 중"
+                    color={HEX.unmet}
+                  />
+                  <KpiTile
+                    label="0개 동 모두 +1이면"
+                    value={`+${fmt(simRows.zeroSum)}건/월`}
+                    sub={`범위 ${fmt(simRows.zeroSumLo)}~${fmt(simRows.zeroSumHi)}건 · 명시된 근사`}
+                    color={FAC_DEF[facility].color}
+                  />
+                </>
+              )
+            }
             chart={
               irrRows && irrRows.length > 0 ? (
                 <div>
@@ -738,41 +868,60 @@ export function StatisticalEvidenceScene({
                   {simRows && (
                     <div className="mt-2 overflow-hidden rounded-lg border border-line">
                       <div className="grid grid-cols-[1fr_72px_88px_1fr] gap-2 border-b border-line bg-[#0e1424] px-2.5 py-1.5 text-[9.5px] font-semibold text-dim">
-                        <span>동</span>
+                        <span>동 (해운대 18개 전체 · 시설 적은 순)</span>
                         <span className="text-right">{FAC_DEF[facility].label}</span>
                         <span className="text-right">월평균 도착</span>
                         <span className="text-right">+1 기대 증가 (95% CI)</span>
                       </div>
-                      {simRows.rows.map((r) => (
-                        <div
-                          key={r.name}
-                          className="grid grid-cols-[1fr_72px_88px_1fr] gap-2 border-b border-line/50 px-2.5 py-1 text-[11px] last:border-b-0"
+                      <div className="max-h-[300px] overflow-y-auto">
+                        {simRows.rows.map((r) => (
+                          <div
+                            key={r.name}
+                            className="grid grid-cols-[1fr_72px_88px_1fr] gap-2 border-b border-line/50 px-2.5 py-1 text-[11px] last:border-b-0"
+                          >
+                            <span className="text-ink/90">{r.name}</span>
+                            <span
+                              className="tnum text-right"
+                              style={{
+                                color: r.cnt === 0 ? HEX.unmet : "var(--ink)",
+                              }}
+                            >
+                              {r.cnt === 0 ? "0 (없음)" : fmt(r.cnt)}
+                            </span>
+                            <span className="tnum text-right text-ink/85">
+                              {fmt(r.monthly)}건
+                            </span>
+                            <span
+                              className="tnum text-right"
+                              style={{
+                                color:
+                                  simRows.irr > 1 ? FAC_DEF[facility].color : "var(--ink-dim)",
+                              }}
+                            >
+                              {r.gain >= 0 ? "+" : ""}
+                              {r.gain.toFixed(1)}건/월 ({r.gainLo.toFixed(1)}~
+                              {r.gainHi.toFixed(1)})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="border-t border-line bg-[#0e1424] px-2.5 py-1.5 text-[10.5px] leading-4">
+                        <span className="text-dim">
+                          {FAC_DEF[facility].label} 0개 동 {simRows.zeroCount}곳에
+                          +1씩 보강하면{" "}
+                        </span>
+                        <b
+                          className="tnum"
+                          style={{ color: FAC_DEF[facility].color }}
                         >
-                          <span className="text-ink/90">{r.name}</span>
-                          <span
-                            className="tnum text-right"
-                            style={{
-                              color: r.cnt === 0 ? HEX.unmet : "var(--ink)",
-                            }}
-                          >
-                            {r.cnt === 0 ? "0 (없음)" : fmt(r.cnt)}
-                          </span>
-                          <span className="tnum text-right text-ink/85">
-                            {fmt(r.monthly)}건
-                          </span>
-                          <span
-                            className="tnum text-right"
-                            style={{
-                              color:
-                                simRows.irr > 1 ? FAC_DEF[facility].color : "var(--ink-dim)",
-                            }}
-                          >
-                            {r.gain >= 0 ? "+" : ""}
-                            {r.gain.toFixed(1)}건/월 ({r.gainLo.toFixed(1)}~
-                            {r.gainHi.toFixed(1)})
-                          </span>
-                        </div>
-                      ))}
+                          월 +{fmt(simRows.zeroSum)}건
+                        </b>
+                        <span className="tnum text-dim">
+                          {" "}
+                          (범위 {fmt(simRows.zeroSumLo)}~{fmt(simRows.zeroSumHi)}건)
+                          기대
+                        </span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -795,10 +944,9 @@ export function StatisticalEvidenceScene({
                         {simRows.p ? ` · ${simRows.p}` : ""}
                       </p>
                       <p className="mt-1 text-[10.5px] leading-4 text-dim">
-                        충전소 0개 동{" "}
-                        {compare.data?.dongs.filter((e) => e.fac.charger === 0)
-                          .length ?? "—"}
-                        곳 — 시설이 없는 동일수록 +1의 상대 효과가 크다.
+                        {FAC_DEF[facility].label} 0개 동 {simRows.zeroCount}곳
+                        모두 +1이면 월 +{fmt(simRows.zeroSum)}건 기대 — 시설이
+                        없는 동일수록 +1의 상대 효과가 크다.
                       </p>
                     </div>
                   ) : (

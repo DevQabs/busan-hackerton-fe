@@ -59,6 +59,8 @@ def col(r, name):
 requests = [0] * 24
 unassigned = [0] * 24
 completed_h = [0] * 24
+assign_wait = [[] for _ in range(24)]  # 접수→배차 분 (배차 성공 건)
+monthly = {}  # 'YYYY-MM' → {"requests": n, "unassigned": u}
 tot = {"requests": 0, "unassigned": 0, "completed": 0, "cancelled": 0}
 fleet_rows = []  # (배차 dt, 하차 dt)
 fleet_skipped = 0
@@ -75,9 +77,17 @@ for r in rows:
     h = t_recv.hour
     tot["requests"] += 1
     requests[h] += 1
+    ym = t_recv.strftime("%Y-%m")
+    m = monthly.setdefault(ym, {"requests": 0, "unassigned": 0})
+    m["requests"] += 1
     if t_assign is None:
         tot["unassigned"] += 1
         unassigned[h] += 1
+        m["unassigned"] += 1
+    else:
+        wait_min = (t_assign - t_recv).total_seconds() / 60.0
+        if 0 <= wait_min <= 24 * 60:
+            assign_wait[h].append(wait_min)
     if t_drop is not None:
         tot["completed"] += 1
         completed_h[h] += 1
@@ -110,6 +120,13 @@ for ta, td in fleet_rows:
 n_days = (d_max - d_min).days + 1
 all_days = [d_min + timedelta(days=i) for i in range(n_days)]
 
+def p50(vals):
+    if not vals:
+        return None
+    s = sorted(vals)
+    return round(s[len(s) // 2], 1)
+
+
 hourly = []
 for h in range(24):
     per_day = [slot_cnt.get((d, h), 0) for d in all_days]
@@ -122,7 +139,18 @@ for h in range(24):
         "unassignedRate": round(una / req, 4) if req else 0.0,
         "avgActive": round(sum(per_day) / n_days, 1),
         "maxActive": max(per_day),
+        "p50AssignMin": p50(assign_wait[h]),  # 접수→배차 중앙값(분), 배차 성공 건
     })
+
+monthly_out = [
+    {
+        "ym": ym,
+        "requests": m["requests"],
+        "unassigned": m["unassigned"],
+        "unassignedRate": round(m["unassigned"] / m["requests"], 4),
+    }
+    for ym, m in sorted(monthly.items())
+]
 
 out = {
     "meta": {
@@ -137,6 +165,7 @@ out = {
     },
     "totals": tot,
     "hourly": hourly,
+    "monthly": monthly_out,
 }
 
 with open(OUT, "w", encoding="utf-8") as f:
