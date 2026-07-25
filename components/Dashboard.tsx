@@ -67,8 +67,9 @@ export default function Dashboard({ page }: { page: PageId }) {
 
   return (
     // 폰: 세로 스택(내용 + 하단 탭) / lg: 이상: 가로(사이드바 + 내용).
-    // h-[100dvh]는 iOS 주소창이 접혔다 펴져도 지도가 잘리지 않게 한다.
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg text-ink lg:flex-row">
+    // h-viewport는 dvh + vh 폴백이다(globals.css) — iOS 주소창이 접혔다 펴져도
+    // 지도가 잘리지 않고, dvh를 모르는 브라우저에서도 높이가 사라지지 않는다.
+    <div className="h-viewport flex flex-col overflow-hidden bg-bg text-ink lg:flex-row">
       <Sidebar page={page} onSelect={selectPage} />
 
       {composed ? (

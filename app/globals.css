@@ -32,11 +32,30 @@ body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
+  /* 안드로이드·삼성 인터넷은 시스템 글꼴 크기 설정을 페이지에도 적용한다
+     (iOS는 하지 않는다). 우리 치수는 10~13px 고정이고 칸이 빽빽해서, 그렇게
+     부풀면 라벨이 서로 겹치고 잘린다 — 페이지 안에서는 우리 값을 쓴다. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   font-family:
     "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR",
     "Malgun Gothic", system-ui, sans-serif;
   font-size: 14px;
   letter-spacing: -0.01em;
+}
+
+/* 화면 높이 한 칸 — dvh를 모르는 브라우저(삼성 인터넷 21 미만, iOS 15.3 이하)를
+   위한 폴백이 붙어 있다. h-[100dvh]만 쓰면 그 브라우저에서는 선언 자체가
+   버려져 높이가 사라지고, overflow-hidden과 겹쳐 화면이 접힌다.
+   폴백을 두 줄(100vh 다음 100dvh)로 쓰면 안 된다 — 빌드의 CSS 미니파이어가
+   타깃 브라우저에 dvh가 있다고 보고 앞줄을 지운다. @supports는 지우지 못한다. */
+.h-viewport {
+  height: 100dvh;
+}
+@supports not (height: 100dvh) {
+  .h-viewport {
+    height: 100vh;
+  }
 }
 
 /* KPI / table numbers align in columns */

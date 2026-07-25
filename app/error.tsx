@@ -17,7 +17,7 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="flex h-[100dvh] flex-col items-center justify-center gap-4 bg-bg px-6 text-center text-ink">
+    <div className="h-viewport flex flex-col items-center justify-center gap-4 bg-bg px-6 text-center text-ink">
       <div className="text-[15px] font-bold">이 화면을 그리지 못했습니다</div>
       <div className="max-w-[320px] text-[12px] leading-5 text-dim">
         기기의 그래픽 지원 범위를 벗어났거나 데이터를 읽지 못했습니다. 다시
