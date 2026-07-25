@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGES, type PageId } from "@/lib/scenes";
+import { EXTERNAL_PAGES, PAGES, type PageId } from "@/lib/scenes";
 
 export function Sidebar({
   page,
@@ -10,7 +10,8 @@ export function Sidebar({
   onSelect: (id: PageId) => void;
 }) {
   return (
-    <nav className="flex w-60 shrink-0 flex-col border-r border-line bg-panel">
+    // 폰에서는 숨고 BottomTabBar가 대신 선다 — 240px를 세로로 세울 방법이 없다.
+    <nav className="hidden w-60 shrink-0 flex-col border-r border-line bg-panel md:flex">
       <div className="border-b border-line px-4 py-4">
         <div className="text-[15px] font-bold leading-5 text-ink">
           어디든 <span className="text-accent">두가자</span>
@@ -58,6 +59,29 @@ export function Sidebar({
             </li>
           );
         })}
+
+        {/* 별도 라우트라 버튼이 아니라 링크다 — 대시보드 씬 상태로는 열 수 없고,
+            번호는 앞의 페이지들에 이어서 붙인다. */}
+        {EXTERNAL_PAGES.map((item, i) => (
+          <li key={item.href}>
+            <a
+              href={item.href}
+              className="group mb-0.5 flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-[#161e30]"
+            >
+              <span className="tnum mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-line text-[10px] font-semibold text-dim">
+                {PAGES.length + i + 1}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium leading-5 text-ink/80">
+                  {item.label}
+                </span>
+                <span className="block truncate text-[11px] leading-4 text-dim">
+                  {item.caption}
+                </span>
+              </span>
+            </a>
+          </li>
+        ))}
       </ol>
 
       <footer className="border-t border-line px-4 py-3 text-[10px] leading-4 text-dim">

@@ -69,9 +69,29 @@ export function wheelchairFit(
   const steps: FitStep[] = [];
   const notes: string[] = [];
 
-  // 휠체어를 쓰지 않으면 이 판정 자체가 의미 없다 — 전부 통과시킨다.
+  // '해당 없음' = 보행 가능. 실사 12개 항목은 전부 휠체어·보행 기준이라 이 사람에게
+  // 입구턱은 결격이 아니다 — 걸어서 넘는다. 그래서 판정 축은 계단 하나뿐이다:
+  // 1층도 아니고 엘리베이터도 없으면 계단을 올라야 하므로 '확인 필요'로 내린다.
+  // 확인된 장벽(unfit)은 이 기준에서 성립하지 않는다 — 아무 곳도 제외하지 않는다.
   if (chair === "none") {
-    return { fit: "fit", steps, reasons: [], notes };
+    if (has("일층")) {
+      steps.push({ label: "층이동", state: "fit", note: "1층" });
+    } else if (has("엘리베이터")) {
+      steps.push({ label: "층이동", state: "fit", note: "엘리베이터 있음" });
+    } else {
+      steps.push({
+        label: "층이동",
+        state: "check",
+        note: "1층이 아니고 엘리베이터가 없어 계단을 이용해야 합니다",
+      });
+    }
+
+    return {
+      fit: worst(steps.map((s) => s.state)),
+      steps,
+      reasons: steps.filter((s) => s.state !== "fit").map((s) => s.note),
+      notes,
+    };
   }
 
   // ── 입구 ──────────────────────────────────────────────────────────────

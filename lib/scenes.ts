@@ -15,6 +15,10 @@ export interface PageDef {
   id: PageId;
   label: string;
   caption: string;
+  /** 폰 하단 탭 이름. 한 칸이 ~95px(390px 폰 기준)이라 두 줄까지 쓰고,
+   *  줄바꿈은 띄어쓰기에서만 일어난다(break-keep). "흐름·진단"처럼 잘라 쓰면
+   *  무엇을 여는 탭인지 읽히지 않아서 전체 이름을 유지한다. */
+  short: string;
 }
 
 /** URL 조각 — 상태가 아니라 주소로 페이지를 연다. 메뉴에서 감춘 페이지도
@@ -37,21 +41,42 @@ export const PAGE_BY_SLUG: Record<string, PageId> = Object.fromEntries(
 /** 주소 없이 들어오면 여기로 — 메뉴의 첫 페이지. */
 export const DEFAULT_SLUG = PAGE_SLUG.flow;
 
+/** 메뉴에 함께 세우지만 대시보드 씬이 아닌 화면. 별도 라우트(app/booking)라
+ *  PageId를 주지 않고 주소로 넘어간다 — 사이드바는 PAGES 뒤에 이어서 그린다. */
+export interface ExternalPageDef {
+  href: string;
+  label: string;
+  caption: string;
+  short: string;
+}
+
+export const EXTERNAL_PAGES: ExternalPageDef[] = [
+  {
+    href: "/booking",
+    label: "배차 대기 · 목적지 주변",
+    caption: "예상 대기시간과 주변 가게·시설 (음성지원)",
+    short: "배차 대기",
+  },
+];
+
 export const PAGES: PageDef[] = [
   {
     id: "flow",
     label: "하루의 흐름",
     caption: "시간대별 이동 애니메이션",
+    short: "하루의 흐름",
   },
   {
     id: "accessibility-decision",
     label: "접근성 진단",
     caption: "충분한가·왜·무엇부터",
+    short: "접근성 진단",
   },
   {
     id: "blindspots-hw",
     label: "해운대 상세 진단",
     caption: "본선 데이터 · 무엇을 비교할까 7칩",
+    short: "해운대 상세",
   },
   // 발표용으로 앞의 3개만 노출한다. 씬·라우팅은 그대로 살아 있으니 아래 주석만
   // 풀면 즉시 되돌아온다 (PageId 유니온에도 그대로 남겨 뒀다).

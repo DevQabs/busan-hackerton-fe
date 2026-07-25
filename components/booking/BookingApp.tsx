@@ -14,8 +14,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import { MapCanvas } from "@/components/MapCanvas";
+import { BottomTabBar } from "@/components/BottomTabBar";
 import { PlaceInput, type VoiceHandle } from "./PlaceInput";
 import { MicButton } from "./MicButton";
+import { MicIcon } from "./MicIcon";
 import { AccessTagList, ChainLine, FixLine, VerdictBadge } from "./AccessTagList";
 import {
   parseSpokenHour,
@@ -179,13 +181,8 @@ export default function BookingApp() {
   const destVoice = useRef<VoiceHandle | null>(null);
   const hourVoice = useRef<VoiceHandle | null>(null);
 
-  // URL로 모드에 진입한다 — 발표자가 무대에서 모드 진입 탭조차 하지 않게 하려는 것이다.
-  // useSearchParams 대신 window를 읽는다: 이 컴포넌트는 ssr:false로 로드되므로 Suspense
-  // 경계가 필요 없고, 정적 내보내기에서도 그대로 동작한다.
-  useEffect(() => {
-    const v = new URLSearchParams(window.location.search).get("voice");
-    if (v === "1" || v === "true") setVoiceMode(true);
-  }, []);
+  // 자동 진입은 없다 — 화면을 보는 사람이 먼저 페이지를 훑고, 필요할 때 헤더의
+  // 마이크 버튼으로 음성 모드에 들어간다. (예전에는 ?voice=1로 바로 진입했다.)
 
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
   const eta = useData<DispatchEtaData>(DATA.dispatchEta);
@@ -285,7 +282,9 @@ export default function BookingApp() {
   const spokenRef = useRef("");
 
   useEffect(() => {
-    if (!voiceOn || !answer.complete) return;
+    // 소리는 음성 모드에서만 낸다 — 눈으로 보는 사람이 페이지를 열었다고 해서
+    // 스피커로 30초 낭독이 시작되면 안 된다.
+    if (!voiceMode || !voiceOn || !answer.complete) return;
     // 음성 모드에서는 세 입력이 다 찰 때까지 기다린다. 도착지를 말한 순간 답이 완성되므로
     // 그대로 두면 30초 낭독이 시작됐다가 탑승 시각을 말하는 순간 끊기고 다시 시작한다.
     if (voiceMode && voiceStep < 3) return;
@@ -321,7 +320,7 @@ export default function BookingApp() {
    *  있으면 자기 TTS를 되받아 오인식하기 때문이다. 음성 안내가 꺼져 있어도 done은
    *  반드시 불러야 한다. 안 그러면 토글을 끈 순간 마이크가 영영 안 열린다. */
   const announce = (text: string, done?: () => void) => {
-    if (voiceOn) speak(text, { onEnd: done });
+    if (voiceMode && voiceOn) speak(text, { onEnd: done });
     else done?.();
   };
 
@@ -542,23 +541,24 @@ export default function BookingApp() {
               onClick={() => {
                 setVoiceMode(true);
                 setVoiceStep(0);
+                // 선택 UI를 감추는 이상 값도 고정해야 한다 — 화면에서 안 보이는
+                // 조건이 결과를 바꾸면 낭독과 화면이 어긋난다.
+                setChair("none");
                 stopSpeaking();
               }}
               aria-pressed={voiceMode}
               aria-label="음성 모드"
-              className={`shrink-0 rounded-lg border px-3 py-2 text-[12px] transition-colors lg:px-2.5 lg:py-1.5 lg:text-[11px] ${
+              className={`flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] transition-colors lg:min-h-0 lg:px-2.5 lg:py-1.5 lg:text-[11px] ${
                 voiceMode
                   ? "border-accent bg-accent/15 text-ink"
                   : "border-line text-dim hover:border-accent hover:text-ink"
               }`}
             >
-              {/* 좁은 폭에서는 글자를 접는다 — 헤더에 줄지 않는 버튼이 둘이면 360px
-                  아래에서 제목을 밀어내고 가로 스크롤이 생긴다. 접근 가능한 이름은
-                  aria-label이 들고 있으므로 표시만 바뀐다. */}
-              <span aria-hidden className="sm:hidden">
-                🎤
-              </span>
-              <span className="hidden sm:inline">음성 모드</span>
+              {/* 마이크 표시는 항상 둔다 — 이 버튼이 음성 진입점이라는 것을 아이콘이
+                  들고 있어야 한다. 이모지는 기기·폰트마다 그림이 달라서 SVG로 그린다.
+                  좁은 폭에서는 글자만 접는다(접근 가능한 이름은 aria-label이 든다). */}
+              <MicIcon />
+              <span className="hidden sm:inline">음성 안내</span>
             </button>
             <a
               href="/"
@@ -592,7 +592,8 @@ export default function BookingApp() {
           a sticky second column spanning all four rows. */}
       {/* main 랜드마크 — 스크린리더가 헤더를 건너뛰고 본문으로 바로 갈 수 있어야
           하고, 페이지 내용이 랜드마크 밖에 남아 있으면 자동 검사도 걸린다. */}
-      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 px-4 pb-16 pt-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-5">
+      {/* 폰에서는 하단 탭(56px + 홈 인디케이터)이 위에 떠 있으므로 그만큼 더 비운다. */}
+      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4 md:pb-16 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-5">
         <div className="space-y-4 lg:col-start-1 lg:row-start-1">
           <section
             aria-label="이동 정보 입력"
@@ -629,6 +630,10 @@ export default function BookingApp() {
               showMic={voiceMode}
             />
 
+            {/* 음성 모드에서는 휠체어 선택을 감춘다 — 음성 입력 3요소(출발·도착·시각)에
+                들어가지 않는 조건이라 화면을 못 보는 사람에게는 조작할 수 없는 컨트롤이
+                되고, 값은 '해당 없음'(보행 기준)으로 고정된다. */}
+            {!voiceMode && (
             <div>
               <span
                 id="booking-chair-label"
@@ -661,17 +666,20 @@ export default function BookingApp() {
                 ))}
               </div>
             </div>
+            )}
           </section>
 
           {/* 음성 안내 — 세 카드에 흩어진 답을 한 문장으로 합쳐 낭독하고, 같은 문장을
               라이브 영역으로도 내보낸다. 입력 바로 아래에 두는 이유: 귀로 쓰는
               사용자에게는 이것이 결과 화면 그 자체다. */}
-          <AnswerCard
-            answer={answer}
-            voiceOn={voiceOn}
-            onToggleVoice={() => setVoiceOn((v) => !v)}
-            onReplay={replay}
-          />
+          {voiceMode && (
+            <AnswerCard
+              answer={answer}
+              voiceOn={voiceOn}
+              onToggleVoice={() => setVoiceOn((v) => !v)}
+              onReplay={replay}
+            />
+          )}
 
           {/* 예상 대기시간 — 요구사항상 가장 먼저 노출 */}
           <WaitCard
@@ -722,6 +730,9 @@ export default function BookingApp() {
           />
         </div>
       </main>
+
+      {/* 폰에서만 뜨는 페이지 이동 탭 — 이 화면은 별도 라우트라 사이드바가 없다. */}
+      <BottomTabBar activeHref="/booking" floating />
     </div>
   );
 }
@@ -789,7 +800,7 @@ function VoiceTapLayer({
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center gap-3 border-b border-accent/40 bg-bg/95 px-4 py-3 backdrop-blur"
       >
-        <span className="text-[26px] leading-none">🎤</span>
+        <MicIcon className="h-7 w-7 text-accent" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">
             {done ? "완료 — 누르면 다시 듣기" : "화면을 누르고 말하세요"}
@@ -804,10 +815,10 @@ function VoiceTapLayer({
       <button
         type="button"
         onClick={onExit}
-        aria-label="음성 모드 끄기"
-        className="fixed right-2 top-2 z-50 flex h-14 w-14 items-center justify-center rounded-full border border-line bg-panel text-[12px] text-dim transition-colors hover:border-accent hover:text-ink"
+        aria-label="음성인식 끄기"
+        className="fixed right-2 top-2 z-50 flex h-14 items-center justify-center rounded-full border border-line bg-panel px-4 text-[13px] font-semibold text-dim transition-colors hover:border-accent hover:text-ink"
       >
-        끄기
+        음성인식 끄기
       </button>
     </>
   );
@@ -1279,7 +1290,11 @@ function ShopSection({
   onToggleCat: (cat: string) => void;
   onClearCats: () => void;
 }) {
-  const filtering = chair !== "none";
+  // 휠체어를 고르지 않아도 분류는 한다 — 축만 좁아진다. '해당 없음'은 보행 기준이라
+  // 계단(1층 아님 + 엘리베이터 없음) 하나만 보고, 입구턱은 결격으로 세지 않는다.
+  const walkOnly = chair === "none";
+  const fitTitle = walkOnly ? "바로 진입 가능" : "이용 가능";
+  const checkTitle = walkOnly ? "계단 확인 필요" : "확인 필요";
   const { fit, check, excluded, cats } = groups;
   const empty = fit.length === 0 && check.length === 0;
   // 반경 안에 표시 가능한 곳이 아예 없는 것과, 업종 필터 때문에 0곳이 된 것은
@@ -1291,7 +1306,7 @@ function ShopSection({
       <h2 className="mb-3 text-[12px] font-medium tracking-wide text-dim lg:mb-2.5 lg:text-[11px] lg:font-normal lg:tracking-normal">
         도착지 주변 무장애 식당{" "}
         <span className="opacity-70">
-          {filtering ? `· ${CHAIR_LABEL[chair]} 기준` : "· 가까운 순"}
+          {walkOnly ? "· 보행 기준" : `· ${CHAIR_LABEL[chair]} 기준`}
         </span>
       </h2>
 
@@ -1368,20 +1383,20 @@ function ShopSection({
             ? `반경 1.5km 안 ${excluded}곳이 모두 ${CHAIR_LABEL[chair]}로 진입 불가입니다.`
             : `이 주변은 무장애가게 실사 데이터가 아직 없습니다${scope ? ` (현재 표본: ${scope})` : ""}.`}
         </p>
-      ) : filtering ? (
+      ) : (
         <>
           {/* 두 칸은 위아래로 쌓고 lg: 이상에서만 좌우로 나뉜다. sm:(640px)로 두면
               폰 가로 모드에서 한 칸이 180px로 쪼그라들어 상호명이 두 글자마다
               줄바꿈된다 — 세로에서 피한 문제가 가로에서 그대로 재현됐다. */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-3">
             <ShopColumn
-              title="이용 가능"
+              title={fitTitle}
               fitState="fit"
               shops={fit}
               emptyText="실사로 확인된 곳이 이 반경에 없습니다."
             />
             <ShopColumn
-              title="확인 필요"
+              title={checkTitle}
               fitState="check"
               shops={check}
               emptyText="확인이 필요한 곳은 없습니다."
@@ -1395,13 +1410,6 @@ function ShopSection({
             </p>
           )}
         </>
-      ) : (
-        // 휠체어 '해당 없음'이면 적합 판정이 의미가 없으므로 기존 verdict 한 줄 목록.
-        <ul className="space-y-2.5 lg:space-y-2">
-          {fit.map((s) => (
-            <ShopCard key={`${s.shop.name}-${s.shop.lng}`} entry={s} showFit={false} />
-          ))}
-        </ul>
       )}
 
     </section>

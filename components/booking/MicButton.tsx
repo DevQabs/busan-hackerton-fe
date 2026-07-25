@@ -8,6 +8,8 @@
 //
 // 터치 목표는 44px 이상 — 무대에서 화면을 가린 채 손가락으로 더듬어 누른다.
 
+import { MicIcon } from "./MicIcon";
+
 export function MicButton({
   label,
   listening,
@@ -36,7 +38,7 @@ export function MicButton({
           : "border-line bg-panel text-dim hover:border-accent hover:text-ink"
       }`}
     >
-      <span aria-hidden>🎤</span>
+      <MicIcon className="h-5 w-5" />
       {/* 듣는 중 표시. 정보는 aria-pressed와 라이브 영역이 이미 전달하므로
           이 링은 순수 시각 신호다. */}
       {listening && (

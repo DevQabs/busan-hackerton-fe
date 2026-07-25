@@ -54,8 +54,10 @@ export function PresentationLayout({
   footnote?: ReactNode;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="flex shrink-0 items-start gap-4 border-b border-line bg-panel/60 px-4 py-3">
+    // 폰: 페이지 전체가 세로로 스크롤한다(지도는 고정 높이 블록). md: 이상은 기존처럼
+    // 화면을 꽉 채우고 각 칸이 내부에서만 스크롤한다.
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-line bg-panel/60 px-4 py-3 md:flex-row md:items-start md:gap-4">
         <div className="min-w-0">
           <h1 className="text-[17px] font-bold leading-6 text-ink">
             {question}
@@ -66,11 +68,12 @@ export function PresentationLayout({
         </div>
 
         {steps && steps.length > 0 && (
-          <ol className="ml-auto flex shrink-0 items-stretch gap-1.5">
+          // 폰에서는 줄바꿈 대신 가로 스크롤 — 3단계가 세 줄이 되면 지도가 그만큼 밀린다.
+          <ol className="-mx-1 flex items-stretch gap-1.5 overflow-x-auto px-1 pb-0.5 md:ml-auto md:mx-0 md:shrink-0 md:overflow-visible md:px-0">
             {steps.map((step, i) => {
               const active = step.id === activeStep;
               return (
-                <li key={step.id} className="flex items-center gap-1.5">
+                <li key={step.id} className="flex shrink-0 items-center gap-1.5">
                   {i > 0 && (
                     <span aria-hidden className="text-[11px] text-dim">
                       →
@@ -115,12 +118,14 @@ export function PresentationLayout({
         )}
       </header>
 
-      <div className="shrink-0 border-b border-line bg-bg px-4 py-3">
+      <div className="shrink-0 overflow-x-auto border-b border-line bg-bg px-4 py-3">
         {kpis}
       </div>
 
-      <div className="flex min-h-0 flex-1">
-        <section className="relative min-w-0 flex-1">
+      {/* 폰: 지도(고정 높이) 위 · 설명 아래로 쌓는다. 좌우로 두면 사이드가 폭을 다
+          먹어 지도 칸이 0으로 눌려 아무것도 보이지 않는다. */}
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        <section className="relative h-[46vh] min-h-[240px] w-full shrink-0 md:h-auto md:min-h-0 md:w-auto md:min-w-0 md:flex-1">
           {map}
           {toolbar && (
             <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
@@ -130,8 +135,10 @@ export function PresentationLayout({
         </section>
 
         <aside
-          className={`flex shrink-0 flex-col overflow-y-auto border-l border-line bg-bg p-3 ${
-            sideWide ? "w-[40%] min-w-[340px] max-w-[600px]" : "w-[360px]"
+          className={`flex w-full flex-col border-t border-line bg-bg p-3 md:shrink-0 md:overflow-y-auto md:border-l md:border-t-0 ${
+            sideWide
+              ? "md:w-[40%] md:min-w-[340px] md:max-w-[600px]"
+              : "md:w-[360px]"
           }`}
         >
           {side}

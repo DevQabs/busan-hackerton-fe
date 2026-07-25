@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
 import { EMPTY_SPEC, type MapSpec } from "@/lib/mapspec";
 import { Sidebar } from "@/components/Sidebar";
+import { BottomTabBar } from "@/components/BottomTabBar";
 import { MapCanvas } from "@/components/MapCanvas";
 import { FlowScene } from "@/components/scenes/FlowScene";
 import { BlindspotsScene } from "@/components/scenes/BlindspotsScene";
@@ -54,11 +55,13 @@ export default function Dashboard({ page }: { page: PageId }) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg text-ink">
+    // 폰: 세로 스택(내용 + 하단 탭) / md: 이상: 가로(사이드바 + 내용).
+    // h-[100dvh]는 iOS 주소창이 접혔다 펴져도 지도가 잘리지 않게 한다.
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg text-ink md:flex-row">
       <Sidebar page={page} onSelect={selectPage} />
 
       {composed ? (
-        <main className="min-w-0 flex-1">
+        <main className="min-h-0 min-w-0 flex-1">
           {page === "accessibility-decision" && (
             <AccessibilityDecisionScene
               onMapSpec={onMapSpec}
@@ -83,8 +86,10 @@ export default function Dashboard({ page }: { page: PageId }) {
           )}
         </main>
       ) : (
-        <>
-          <main className="relative min-w-0 flex-1">
+        // 레거시 셸(지도 + 우측 패널) — 폰에서는 지도가 위 45vh, 패널이 아래
+        // 나머지를 차지하며 스크롤한다. md: 이상은 기존 좌우 배치 그대로.
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
+          <main className="relative h-[45vh] min-w-0 shrink-0 md:h-auto md:flex-1">
             {map}
             <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-2">
               <div className="pointer-events-none rounded-lg border border-line bg-panel/90 px-3.5 py-2.5 backdrop-blur">
@@ -99,11 +104,13 @@ export default function Dashboard({ page }: { page: PageId }) {
             </div>
           </main>
 
-          <aside className="w-[400px] shrink-0 overflow-y-auto border-l border-line bg-bg p-3">
+          <aside className="min-h-0 flex-1 overflow-y-auto border-t border-line bg-bg p-3 md:w-[400px] md:flex-none md:border-l md:border-t-0">
             {legacyPanel}
           </aside>
-        </>
+        </div>
       )}
+
+      <BottomTabBar page={page} onSelect={selectPage} />
     </div>
   );
 }
