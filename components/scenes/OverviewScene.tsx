@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { GeoJsonLayer } from "deck.gl";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { GeoJsonLayer, TextLayer } from "deck.gl";
 import { DATA, type DongProps, type Stats } from "@/lib/types";
 import { useData } from "@/lib/useData";
 import { fmt, pct } from "@/lib/format";
@@ -18,33 +18,125 @@ import { Explainer } from "@/components/ui/Explainer";
 import { HourBar } from "@/components/charts/HourBar";
 import { DowBar } from "@/components/charts/DowBar";
 
+/** How high (metres) the hovered 행정동 rises out of the map. At the opening
+ *  zoom this reads as a ~30px lift — enough for the 3D pop, small enough that
+ *  the block never covers its neighbours. */
+const HOVER_LIFT_M = 1600;
+
 export function OverviewScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const stats = useData<Stats>(DATA.stats);
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
+  const [hoverCd, setHoverCd] = useState<string | null>(null);
+
+  // deck fires onHover on every move; setting the same admCd is a React no-op.
+  const onHover = useCallback(
+    (info: { object?: { properties?: DongProps } | null }) =>
+      setHoverCd(info.object?.properties?.admCd ?? null),
+    [],
+  );
+
+  const all = useMemo(
+    () => dongs.data?.features.map((f) => f.properties) ?? [],
+    [dongs.data],
+  );
+
+  /** hovered dong + where it sits among all 206 행정동 */
+  const hovered = useMemo(() => {
+    if (!hoverCd) return null;
+    const p = all.find((d) => d.admCd === hoverCd);
+    if (!p) return null;
+    const dropRank =
+      all.filter((d) => d.dropoffs > p.dropoffs).length + 1;
+    const maxDrop = Math.max(1, ...all.map((d) => d.dropoffs));
+    const maxPick = Math.max(1, ...all.map((d) => d.pickups));
+    const rate = p.unassigned / Math.max(1, p.pickups + p.unassigned);
+    return { p, dropRank, total: all.length, maxDrop, maxPick, rate };
+  }, [hoverCd, all]);
 
   const layers = useMemo(() => {
     if (!dongs.data) return [];
     const max = Math.max(1, ...dongs.data.features.map((f) => f.properties.dropoffs));
     return [
+      // extruded fill: flat at rest, the hovered dong animates up on its walls
       new GeoJsonLayer<DongProps>({
         id: "overview-dongs",
         data: dongs.data as never,
         pickable: true,
         autoHighlight: true,
         highlightColor: [255, 255, 255, 72],
-        stroked: true,
+        stroked: false,
         filled: true,
+        extruded: true,
+        material: false, // flat colors — no lighting shift on the raised walls
+        getElevation: (f) =>
+          f.properties.admCd === hoverCd ? HOVER_LIFT_M : 0,
         getFillColor: (f) => {
           // faint sqrt ramp so the map stays a backdrop, not the message
           const t = Math.sqrt(f.properties.dropoffs / max);
-          return [56, 189, 248, Math.round(18 + t * 110)];
+          const lifted = f.properties.admCd === hoverCd;
+          return [
+            56,
+            189,
+            248,
+            Math.round((lifted ? 70 : 18) + t * 110),
+          ];
         },
-        getLineColor: [35, 43, 61, 200],
-        getLineWidth: 1,
-        lineWidthUnits: "pixels",
+        onHover,
+        transitions: {
+          getElevation: { duration: 260 },
+          getFillColor: { duration: 180 },
+        },
+        updateTriggers: {
+          getElevation: [hoverCd],
+          getFillColor: [hoverCd],
+        },
       }),
+      // ground outlines stay put, so a raised dong reads against its footprint
+      new GeoJsonLayer<DongProps>({
+        id: "overview-dong-lines",
+        data: dongs.data as never,
+        pickable: false,
+        stroked: true,
+        filled: false,
+        getLineColor: (f) =>
+          f.properties.admCd === hoverCd
+            ? [34, 211, 238, 220]
+            : [35, 43, 61, 200],
+        getLineWidth: (f) => (f.properties.admCd === hoverCd ? 2 : 1),
+        lineWidthUnits: "pixels",
+        updateTriggers: {
+          getLineColor: [hoverCd],
+          getLineWidth: [hoverCd],
+        },
+      }),
+      // name + 하차 floating on top of the raised block
+      ...(hovered
+        ? [
+            new TextLayer<DongProps>({
+              id: "overview-hover-label",
+              data: [hovered.p],
+              getPosition: (d) => [
+                d.centroid[0],
+                d.centroid[1],
+                HOVER_LIFT_M + 120,
+              ],
+              getText: (d) =>
+                `${d.name}\n하차 ${fmt(d.dropoffs)}건 · ${hovered.dropRank}위`,
+              getSize: 13,
+              getColor: [226, 232, 240, 255],
+              lineHeight: 1.35,
+              fontWeight: 700,
+              getTextAnchor: "middle",
+              getAlignmentBaseline: "bottom",
+              getPixelOffset: [0, -6],
+              background: true,
+              getBackgroundColor: [11, 15, 26, 215],
+              backgroundPadding: [6, 4, 6, 4],
+            }),
+          ]
+        : []),
     ];
-  }, [dongs.data]);
+  }, [dongs.data, hoverCd, hovered, onHover]);
 
   const getTooltip = useMemo<MapSpec["getTooltip"]>(() => {
     return (info) => {
@@ -57,9 +149,107 @@ export function OverviewScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }
     };
   }, []);
 
+  // Hover card over the map: the raised dong's own numbers, each next to the
+  // citywide reference so a judge can read "높다 / 낮다" without a legend.
+  const cityRate = stats.data?.totals.unassignedRate ?? 0;
+  const overlay = useMemo(() => {
+    if (!hovered) {
+      return dongs.data ? (
+        <div className="pointer-events-none rounded-lg border border-line bg-panel/85 px-3 py-1.5 text-[11px] leading-4 text-dim backdrop-blur">
+          지도의 행정동에 마우스를 올리면 그 동이 떠오르며 상세 지표가
+          표시됩니다
+        </div>
+      ) : undefined;
+    }
+    const { p, dropRank, total, maxDrop, maxPick, rate } = hovered;
+    const bars: [string, string, number, string][] = [
+      ["하차", `${fmt(p.dropoffs)}건`, p.dropoffs / maxDrop, HEX.demand],
+      ["승차", `${fmt(p.pickups)}건`, p.pickups / maxPick, HEX.accent],
+      [
+        "미배차율",
+        `${pct(rate)} (시 평균 ${pct(cityRate)})`,
+        Math.min(1, rate / Math.max(0.01, cityRate * 2)),
+        rate > cityRate ? HEX.unmet : HEX.infra,
+      ],
+    ];
+    return (
+      <div className="pointer-events-none w-[268px] rounded-lg border border-accent/40 bg-panel/95 px-3 py-2.5 backdrop-blur">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="text-[13px] font-bold leading-5 text-ink">
+            {p.gu} {p.name}
+          </div>
+          <div className="tnum shrink-0 text-[10px] text-dim">
+            하차 {dropRank}위 / {total}
+          </div>
+        </div>
+
+        <div className="mt-1.5 space-y-1">
+          {bars.map(([label, value, t, color]) => (
+            <div key={label}>
+              <div className="flex items-baseline justify-between gap-2 text-[10.5px] leading-4">
+                <span className="text-dim">{label}</span>
+                <span className="tnum text-ink">{value}</span>
+              </div>
+              <span className="mt-0.5 block h-1 overflow-hidden rounded-full bg-[#1a2336]">
+                <span
+                  className="block h-full rounded-full"
+                  style={{
+                    width: `${Math.round(Math.min(1, t) * 100)}%`,
+                    background: color,
+                  }}
+                />
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-2 grid grid-cols-4 gap-1 border-t border-line/70 pt-1.5 text-center">
+          {(
+            [
+              ["충전소", p.chargers],
+              ["병의원", p.hospitals],
+              ["약국", p.pharmacies],
+              ["복지", p.welfare],
+            ] as [string, number][]
+          ).map(([label, n]) => (
+            <div key={label}>
+              <div
+                className={`tnum text-[13px] font-bold leading-4 ${
+                  n === 0 ? "text-unmet" : "text-ink"
+                }`}
+              >
+                {fmt(n)}
+              </div>
+              <div className="text-[9px] leading-3 text-dim">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] leading-4">
+          <span className="text-dim">
+            대기 중앙값{" "}
+            <b className="tnum text-ink">
+              {p.waitMedian === null ? "표본 부족" : `${fmt(p.waitMedian)}분`}
+            </b>
+          </span>
+          <span
+            className="rounded px-1.5 py-0.5 font-semibold"
+            style={
+              p.gapClass === "HL"
+                ? { color: HEX.gapHL, background: `${HEX.gapHL}1f` }
+                : { color: HEX.inkDim, background: "#1a2336" }
+            }
+          >
+            {p.gapClass === "HL" ? "우선 사각지대" : `격차 ${p.gapScore.toFixed(2)}`}
+          </span>
+        </div>
+      </div>
+    );
+  }, [hovered, dongs.data, cityRate]);
+
   useEffect(() => {
-    onMapSpec({ layers, getTooltip });
-  }, [layers, getTooltip, onMapSpec]);
+    onMapSpec({ layers, getTooltip, overlay });
+  }, [layers, getTooltip, overlay, onMapSpec]);
 
   if (!stats.data) {
     return <DataPending note="stats.json 대기 중 — 지표·차트가 여기 표시됩니다." />;
