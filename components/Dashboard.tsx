@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
 import { EMPTY_SPEC, type MapSpec } from "@/lib/mapspec";
-import { prefetchBooking } from "@/lib/prefetchBooking";
 import { Sidebar } from "@/components/Sidebar";
 import { BottomTabBar } from "@/components/BottomTabBar";
 import { MapCanvas } from "@/components/MapCanvas";
@@ -40,10 +39,6 @@ export default function Dashboard({ page }: { page: PageId }) {
 
   // 페이지가 바뀌면 이전 화면의 레이어를 지운다 — 새 씬이 자기 것을 올린다.
   useEffect(() => setMapSpec(EMPTY_SPEC), [page]);
-
-  // 배차 대기 페이지는 청크와 artifact가 무거워서 누른 뒤에 받으면 눈에 띄게
-  // 기다린다 — 대시보드가 한가할 때 미리 받아 둔다 (lib/prefetchBooking.ts).
-  useEffect(() => prefetchBooking(), []);
 
   const selectPage = useCallback(
     (id: PageId) => router.push(`/${PAGE_SLUG[id]}`),

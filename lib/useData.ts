@@ -22,14 +22,9 @@ function notify(entry: Entry) {
   entry.listeners.forEach((cb) => cb());
 }
 
-/** 미리 받아 두는 요청은 지금 보고 있는 화면의 요청보다 뒤로 세운다 — Chrome은
- *  RequestInit.priority를 읽고, 모르는 브라우저는 이 필드를 무시한다.
- *  (lib.dom 타입에 아직 없어서 캐스팅한다.) */
-const LOW_PRIORITY = { priority: "low" } as RequestInit;
-
-function doFetch(url: string, entry: Entry, init?: RequestInit) {
+function doFetch(url: string, entry: Entry) {
   entry.status = "loading";
-  fetch(url, init)
+  fetch(url)
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
@@ -46,21 +41,14 @@ function doFetch(url: string, entry: Entry, init?: RequestInit) {
     });
 }
 
-function getEntry(url: string, init?: RequestInit): Entry {
+function getEntry(url: string): Entry {
   let entry = cache.get(url);
   if (!entry) {
     entry = { status: "loading", listeners: new Set() };
     cache.set(url, entry);
-    doFetch(url, entry, init);
+    doFetch(url, entry);
   }
   return entry;
-}
-
-/** 아직 화면에 없는 페이지의 artifact를 미리 받아 캐시에 넣는다 — 그 페이지가
- *  열릴 때 useData가 곧바로 캐시를 읽는다. 이미 받은 URL은 건드리지 않고,
- *  새로 받는 것은 낮은 우선순위로 — 지금 화면의 요청을 밀어내면 안 된다. */
-export function prefetchData(urls: readonly string[]) {
-  urls.forEach((url) => getEntry(url, LOW_PRIORITY));
 }
 
 /** Refetch every cached artifact (본선 재적재 버튼). Old data stays on screen

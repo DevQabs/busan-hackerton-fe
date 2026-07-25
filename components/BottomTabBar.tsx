@@ -1,8 +1,6 @@
 "use client";
 
-import Link from "next/link";
 import { EXTERNAL_PAGES, PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
-import { prefetchBookingRest } from "@/lib/prefetchBooking";
 
 // 폰 전용 내비 — 240px 사이드바를 세로로 세울 수 없어서 하단 탭으로 바꾼다.
 // 페이지가 정확히 4개라 한 줄에 들어가고, 엄지 도달 범위에 있다.
@@ -72,13 +70,13 @@ export function BottomTabBar({
                   <TabInner active={active} label={item.short} />
                 </button>
               ) : (
-                <Link
+                <a
                   href={`/${PAGE_SLUG[item.id]}`}
                   aria-current={active ? "page" : undefined}
                   className={`${TAB_BASE} ${tone}`}
                 >
                   <TabInner active={active} label={item.short} />
-                </Link>
+                </a>
               )}
             </li>
           );
@@ -88,17 +86,13 @@ export function BottomTabBar({
           const active = item.href === activeHref;
           return (
             <li key={item.href} className="min-w-0 flex-1">
-              <Link
+              <a
                 href={item.href}
-                // 손가락이 닿는 순간 무거운 artifact를 받기 시작한다 —
-                // 탭이 실제로 열리기 전에 조금이라도 앞서 나간다.
-                onPointerEnter={prefetchBookingRest}
-                onFocus={prefetchBookingRest}
                 aria-current={active ? "page" : undefined}
                 className={`${TAB_BASE} ${active ? "text-accent" : "text-dim"}`}
               >
                 <TabInner active={active} label={item.short} />
-              </Link>
+              </a>
             </li>
           );
         })}
