@@ -176,9 +176,9 @@ const BASIS_MEANING: Record<Basis, { headline: string; detail: string }> = {
 
 /** 칩용 축약 — 전체 문구는 KPI 밴드가 계속 보여준다. */
 const BASIS_SHORT: Record<Basis, string> = {
-  balanced: "50:50",
-  population: "인구",
-  trips: "이용",
+  balanced: "인구50 이용50",
+  population: "인구만",
+  trips: "이용만",
 };
 
 /** 부산 위도대에서 도(度) → m. 구 단위 비교에는 충분한 근사. */
@@ -1182,7 +1182,7 @@ export function AccessibilityDecisionScene({
       </MapToolbar>
       <MapToolbar inline label="시설">
         <Chip active={lens === "all"} onClick={() => setLens("all")}>
-          {view === "gu" ? "미달 수" : "충전·복지"}
+          {view === "gu" ? "미달 수" : "전체"}
         </Chip>
         {FACILITY_KEYS.filter(
           (key) => view === "gu" || POINT_TYPES[key].length > 0,
