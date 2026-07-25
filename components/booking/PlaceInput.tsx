@@ -185,8 +185,13 @@ export function PlaceInput({
       if (seq !== seqRef.current) return;
       if (found.length === 0) {
         setHits([]);
-        setErr(`"${q}" 검색 결과가 없습니다. 마이크를 다시 누르고 말씀해 주세요.`);
+        // 화면 문구와 낭독 문장을 같은 것으로 둔다. 여기서 직접 말하는 이유는,
+        // 낭독 대상이 인식 오류(voice.error)뿐이라 "검색 결과 없음"은 소리로 나가지
+        // 않았기 때문이다 — 귀로 쓰는 사람에게는 아무 일도 안 일어난 것과 같았다.
+        const miss = `"${q}" 검색 결과가 없습니다. 다시 말씀해 주세요.`;
+        setErr(miss);
         setOpen(true);
+        onAnnounce?.(miss);
         return;
       }
       setHits(found);
@@ -196,8 +201,11 @@ export function PlaceInput({
     } catch (e) {
       if (seq !== seqRef.current) return;
       setHits([]);
-      setErr(e instanceof Error ? e.message : "검색에 실패했습니다");
+      // 실패도 같은 규칙 — 소리로 알리고 무엇을 하면 되는지까지 말한다.
+      const failed = `${e instanceof Error ? e.message : "검색에 실패했습니다"}. 다시 말씀해 주세요.`;
+      setErr(failed);
       setOpen(true);
+      onAnnounce?.(failed);
     } finally {
       if (seq === seqRef.current) setBusy(false);
     }
