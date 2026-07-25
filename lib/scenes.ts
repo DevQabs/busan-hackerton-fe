@@ -9,7 +9,8 @@ export type PageId =
   | "dispatch-analysis"
   | "statistics"
   | "dispatchEta"
-  | "blindspots-hw";
+  | "blindspots-hw"
+  | "statistical-evidence";
 
 export interface PageDef {
   id: PageId;
@@ -27,6 +28,7 @@ export const PAGE_SLUG: Record<PageId, string> = {
   flow: "flow",
   "accessibility-decision": "accessibility",
   "blindspots-hw": "haeundae",
+  "statistical-evidence": "evidence",
   infrastructure: "infrastructure",
   blindspots: "blindspots",
   "dispatch-analysis": "dispatch",
@@ -77,6 +79,12 @@ export const PAGES: PageDef[] = [
     label: "해운대 상세 진단",
     caption: "본선 데이터 · 무엇을 비교할까 7칩",
     short: "해운대 상세",
+  },
+  {
+    id: "statistical-evidence",
+    label: "통계 분석",
+    caption: "진단의 근거와 제안",
+    short: "통계 분석",
   },
   // 발표용으로 앞의 3개만 노출한다. 씬·라우팅은 그대로 살아 있으니 아래 주석만
   // 풀면 즉시 되돌아온다 (PageId 유니온에도 그대로 남겨 뒀다).

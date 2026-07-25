@@ -237,6 +237,8 @@ export interface IrrRow {
   lo: number;
   hi: number;
   significant: boolean; // CI excludes 1
+  p?: string; // 표시용 p값 (예: "p=0.0002", "p<0.0001") — 없으면 미표시
+  color?: string; // significant일 때 색 오버라이드 (기본 HEX.accent)
 }
 
 export function IrrForest({ rows }: { rows: IrrRow[] }) {
@@ -262,13 +264,16 @@ export function IrrForest({ rows }: { rows: IrrRow[] }) {
               style={{
                 left: `${x(r.lo)}%`,
                 width: `${Math.max(x(r.hi) - x(r.lo), 1.5)}%`,
-                background: r.significant ? HEX.accent : "var(--ink-dim)",
+                background: r.significant ? (r.color ?? HEX.accent) : "var(--ink-dim)",
                 opacity: r.significant ? 0.55 : 0.35,
               }}
             />
             <div
               className="absolute top-1/2 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-bg"
-              style={{ left: `${x(r.irr)}%`, background: r.significant ? HEX.accent : "var(--ink-dim)" }}
+              style={{
+                left: `${x(r.irr)}%`,
+                background: r.significant ? (r.color ?? HEX.accent) : "var(--ink-dim)",
+              }}
             />
           </div>
           <div
@@ -276,13 +281,17 @@ export function IrrForest({ rows }: { rows: IrrRow[] }) {
             style={{ color: r.significant ? "var(--ink)" : "var(--ink-dim)" }}
           >
             ×{r.irr.toFixed(2)} [{r.lo.toFixed(2)}–{r.hi.toFixed(2)}]
+            {r.p && (
+              <span className="block text-[9.5px] text-dim">{r.p}</span>
+            )}
           </div>
         </div>
       ))}
       <p className="pt-0.5 text-[10px] leading-4 text-dim">
         세로선 = 효과 없음(×1.0) · 구간이 세로선을 넘지 않으면 통계적으로 유의
-        (<span style={{ color: HEX.accent }}>청록</span>) — 유의하지 않은 변수도
-        그대로 공개
+        (<span style={{ color: HEX.accent }}>청록</span>)
+        {rows.some((r) => !r.significant) &&
+          " — 유의하지 않은 변수도 그대로 공개"}
       </p>
     </div>
   );

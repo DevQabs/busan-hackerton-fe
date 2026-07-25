@@ -15,6 +15,7 @@ import { DispatchScene } from "@/components/scenes/DispatchScene";
 import { StatisticsScene } from "@/components/scenes/StatisticsScene";
 import { DispatchEtaScene } from "@/components/scenes/DispatchEtaScene";
 import { AccessibilityDecisionScene } from "@/components/scenes/AccessibilityDecisionScene";
+import { StatisticalEvidenceScene } from "@/components/scenes/StatisticalEvidenceScene";
 
 /** Pages rebuilt as self-contained compositions own the whole content area
  *  (KPI band, map, side column, action strip) and receive the map as a slot.
@@ -26,6 +27,7 @@ const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
   "blindspots-hw",
   "dispatch-analysis",
   "statistics",
+  "statistical-evidence",
 ]);
 
 export default function Dashboard({ page }: { page: PageId }) {
@@ -77,6 +79,9 @@ export default function Dashboard({ page }: { page: PageId }) {
           )}
           {page === "blindspots-hw" && (
             <BlindspotsHaeundaeScene onMapSpec={onMapSpec} map={map} />
+          )}
+          {page === "statistical-evidence" && (
+            <StatisticalEvidenceScene onMapSpec={onMapSpec} map={map} />
           )}
           {page === "dispatch-analysis" && (
             <DispatchScene onMapSpec={onMapSpec} map={map} />
