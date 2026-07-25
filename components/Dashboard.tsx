@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
 import { EMPTY_SPEC, type MapSpec } from "@/lib/mapspec";
@@ -33,12 +33,21 @@ const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
 export default function Dashboard({ page }: { page: PageId }) {
   const router = useRouter();
   const [mapSpec, setMapSpec] = useState<MapSpec>(EMPTY_SPEC);
+  const [specPage, setSpecPage] = useState<PageId>(page);
 
   const onMapSpec = useCallback((spec: MapSpec) => setMapSpec(spec), []);
   const pageDef = PAGES.find((item) => item.id === page) ?? PAGES[0];
 
   // 페이지가 바뀌면 이전 화면의 레이어를 지운다 — 새 씬이 자기 것을 올린다.
-  useEffect(() => setMapSpec(EMPTY_SPEC), [page]);
+  // 이펙트로 지우면 안 된다: 라우트가 [page] 하나라 Dashboard는 마운트를 유지하고,
+  // 한 커밋의 이펙트는 자식이 먼저 돈다. 새 씬이 마운트 이펙트로 올린 레이어를
+  // 뒤이어 실행되는 부모 이펙트가 덮어써, 데이터가 이미 캐시된 재방문에서는
+  // 씬 이펙트가 다시 발화할 일이 없어 지도가 빈 채로 남았다. 렌더 중에 지우면
+  // 자식이 렌더·이펙트를 실행하기 전에 초기화가 끝난다.
+  if (specPage !== page) {
+    setSpecPage(page);
+    setMapSpec(EMPTY_SPEC);
+  }
 
   const selectPage = useCallback(
     (id: PageId) => router.push(`/${PAGE_SLUG[id]}`),
