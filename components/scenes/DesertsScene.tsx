@@ -29,6 +29,7 @@ import {
 import { Section } from "@/components/ui/Section";
 import { DataPending } from "@/components/ui/DataPending";
 import { Explainer } from "@/components/ui/Explainer";
+import { ownersOfLack } from "@/lib/access";
 import {
   CURSOR_FILL,
   TICK,
@@ -36,21 +37,6 @@ import {
   TOOLTIP_ITEM_STYLE,
   TOOLTIP_LABEL_STYLE,
 } from "@/components/charts/theme";
-
-/** 소관 (responsible party) derived from Korean shortage badges. */
-export function ownersOfLack(lack: string[]): string[] {
-  const out: string[] = [];
-  const push = (v: string) => {
-    if (!out.includes(v)) out.push(v);
-  };
-  for (const l of lack) {
-    if (l.includes("충전")) push("구청·윌체어");
-    else if (l.includes("병의원") || l.includes("병원") || l.includes("의원")) push("구청");
-    else if (l.includes("복지")) push("구청");
-    else if (l.includes("상가") || l.includes("1층")) push("윌체어");
-  }
-  return out;
-}
 
 function distLabel(m: number | null): string {
   return m === null ? "2km 밖" : `${fmt(m)}m`;

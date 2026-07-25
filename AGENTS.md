@@ -137,8 +137,21 @@ public/data/            ← 12 generated artifacts + busan_dongs_raw.geojson
   ├ arrival_deserts.json← 250m dropoff grid scoring + greedy picks
   └ model_results.json  ← 4 rehearsal fits (NB / Welch t / χ² / bootstrap)
 app/page.tsx            ← entry (ssr:false dynamic)
-components/Dashboard.tsx← shell: sidebar / map / right panel
+components/Dashboard.tsx← shell: sidebar + either a composed page (map as slot)
+                          or the legacy map / right-panel layout (COMPOSED set)
+components/PresentationLayout.tsx ← the presentation shell every rebuilt page
+                          uses: question + story steps / KPI band / map+toolbar /
+                          side column / action strip (KpiTile·Chip·ActionCard)
 components/MapCanvas.tsx← maplibre + deck.gl MapboxOverlay + offline fallback
-components/scenes/*.tsx ← the 9 scenes (overview/demand/flow/od/gap/unmet/infra/priority/models)
+components/scenes/       ← 6 navigation pages (lib/scenes.ts):
+  ├ OverviewScene / FlowScene            (legacy right-panel layout)
+  ├ InfrastructureScene  ← 생활 인프라: filters + 행정동 프로필 + unified card
+  ├ BlindspotsScene      ← 접근성 사각지대: 3-step story (OD → deserts → 400m)
+  ├ DispatchScene        ← 배차 시스템: route planner (시간·휠체어·출발·도착)
+  ├ StatisticsScene      ← 통계: priority map + 3 proofs + selected dong action
+  └ the older single-purpose scenes (Gap/Od/Deserts/Last400/Tourism/Infra/
+    Welfare/Forensics/Demand/Unmet/Priority/Disability/Models) are NOT in the
+    navigation any more — kept as reference material, safe to delete
+lib/access.ts           ← 무장애가게 진입→이용→편의 chain verdicts + fix/owner map
 lib/useData.ts          ← cached fetch hook with retry + "데이터 준비 중" state
 ```

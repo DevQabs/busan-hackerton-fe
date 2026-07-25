@@ -20,63 +20,13 @@ import {
 import { Section } from "@/components/ui/Section";
 import { DataPending } from "@/components/ui/DataPending";
 import { Explainer } from "@/components/ui/Explainer";
-
-type Cls = "good" | "warning" | "critical";
-interface Status {
-  enterable: boolean;
-  usable: boolean;
-  comfort: boolean;
-  barrier: string;
-  cls: Cls;
-}
-
-/** enterable→usable→comfort chain from the 12 Y/N audit fields (doc §5).
- *  sim = 입구 무턱화(entrance made step-free) counterfactual. */
-function statusOf(f: Record<string, string>, sim: boolean): Status {
-  const entryOk = sim || f["입구턱"] !== "Y" || f["입구무턱"] === "Y" || f["경사로"] === "Y";
-  const floorOk = f["일층"] === "Y" || f["엘리베이터"] === "Y";
-  const enterable = entryOk && floorOk;
-  const usable = enterable && f["테이블석"] === "Y";
-  const comfort = usable && f["장애인화장실"] === "Y";
-  const barrier = !entryOk
-    ? "입구(진입)"
-    : !floorOk
-      ? "층이동"
-      : f["테이블석"] !== "Y"
-        ? "내부이용"
-        : f["장애인화장실"] !== "Y"
-          ? "편의(화장실)"
-          : "완비";
-  const cls: Cls = comfort ? "good" : !enterable ? "critical" : "warning";
-  return { enterable, usable, comfort, barrier, cls };
-}
-
-const CLS_RGBA: Record<Cls, [number, number, number, number]> = {
-  good: [52, 211, 153, 235], // infra green — 완비
-  warning: [251, 191, 36, 235], // warn amber — 진입가능·미완비
-  critical: [229, 72, 77, 240], // gapHL red — 진입 불가
-};
-const CLS_HEX: Record<Cls, string> = {
-  good: HEX.infra,
-  warning: HEX.warn,
-  critical: HEX.gapHL,
-};
-
-/** hard gate (입구/층) → red, quality gap (내부/편의) → amber. */
-function barrierHex(barrier: string): string {
-  if (barrier.startsWith("입구") || barrier === "층이동") return HEX.gapHL;
-  if (barrier === "완비") return HEX.infra;
-  return HEX.warn;
-}
-
-/** the concrete fix + responsible party for each broken link (doc §8). */
-function actionOf(barrier: string): { label: string; owner: string } {
-  if (barrier.startsWith("입구") || barrier === "층이동")
-    return { label: "입구 무턱화·경사로 설치", owner: "구청·건물주" };
-  if (barrier === "내부이용") return { label: "내부 통로·좌석 개선", owner: "업주" };
-  if (barrier === "편의(화장실)") return { label: "장애인화장실 설치", owner: "업주·구청" };
-  return { label: "접근 거점 유지", owner: "—" };
-}
+import {
+  actionOf,
+  barrierHex,
+  statusOf,
+  CLS_HEX,
+  CLS_RGBA,
+} from "@/lib/access";
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 

@@ -29,7 +29,7 @@ export const PAGES: PageDef[] = [
   {
     id: "infrastructure",
     label: "생활 인프라",
-    caption: "무장애 시설과 복지 프로그램",
+    caption: "시설·프로그램·장애유형 커버리지",
   },
   {
     id: "blindspots",
@@ -38,12 +38,12 @@ export const PAGES: PageDef[] = [
   },
   {
     id: "dispatch-analysis",
-    label: "배차 분석",
-    caption: "대기·수요·미충족 기반 분석",
+    label: "배차 시스템",
+    caption: "시간·출발·도착 기반 배차 판단",
   },
   {
     id: "statistics",
     label: "통계 대시보드",
-    caption: "우선순위·정책 근거·장애인 수요",
+    caption: "우선순위 지도와 세 가지 근거",
   },
 ];
