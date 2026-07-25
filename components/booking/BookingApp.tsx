@@ -15,6 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import { MapCanvas } from "@/components/MapCanvas";
 import { BottomTabBar } from "@/components/BottomTabBar";
+import { Sidebar } from "@/components/Sidebar";
 import { PlaceInput, type VoiceHandle } from "./PlaceInput";
 import { MicButton } from "./MicButton";
 import { MicIcon } from "./MicIcon";
@@ -520,7 +521,13 @@ export default function BookingApp() {
   }, [route, facilities, shops, origin, dest, flyTo, hoverKey]);
 
   return (
-    <div className="min-h-screen bg-bg text-ink">
+    // 데스크톱에서는 대시보드와 같은 사이드바를 왼쪽에 세운다 — 이 화면도 메뉴의
+    // 한 페이지이므로, 여기 들어왔다고 페이지 이동 수단이 사라지면 안 된다.
+    // 폰에서는 사이드바가 숨고 하단 탭바가 그 역할을 한다.
+    <div className="flex min-h-screen bg-bg text-ink">
+      <Sidebar activeHref="/booking" />
+
+      <div className="min-w-0 flex-1">
       {/* ── header ─────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-30 border-b border-line bg-bg/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3.5 lg:py-3">
@@ -732,8 +739,9 @@ export default function BookingApp() {
           />
         </div>
       </main>
+      </div>
 
-      {/* 폰에서만 뜨는 페이지 이동 탭 — 이 화면은 별도 라우트라 사이드바가 없다.
+      {/* 폰에서만 뜨는 페이지 이동 탭 — 폰에서는 사이드바가 숨어 있다.
           음성 모드에서는 내린다: 탭 면(z-40)과 같은 층에 떠 있어서 화면 아래쪽을
           누르면 단계가 진행되는 대신 페이지를 떠나 버린다. 모드에서 나가는 길은
           z-50의 '음성인식 끄기' 하나로 충분하다. */}

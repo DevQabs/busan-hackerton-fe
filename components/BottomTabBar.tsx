@@ -11,8 +11,10 @@ import { EXTERNAL_PAGES, PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
 //  - 배차(/booking) — 별도 라우트라 onSelect가 없고, 전부 링크가 된다.
 //    이쪽은 페이지가 세로로 스크롤하므로 floating(고정)으로 띄운다.
 
+// cursor-pointer 명시 — 버튼과 링크가 한 줄에 섞여 있어서, 안 주면 탭마다
+// 커서가 달라진다.
 const TAB_BASE =
-  "flex h-14 w-full flex-col items-center justify-center gap-0.5 px-1";
+  "flex h-14 w-full cursor-pointer flex-col items-center justify-center gap-0.5 px-1";
 
 function TabInner({ active, label }: { active: boolean; label: string }) {
   return (
