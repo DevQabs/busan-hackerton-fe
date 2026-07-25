@@ -130,9 +130,11 @@ function HourStrip({
 
 export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const raw = useData<AnimTrip[]>(DATA.tripsAnim);
-  const trips = useMemo(() => {
-    if (!raw.data) return raw;
-    const fixed = raw.data.map((trip) => {
+  // useData는 매 렌더 새 객체를 돌려주므로 배열(raw.data)에만 의존한다 —
+  // 훅 결과 자체에 의존하면 레이어가 매 렌더 새로 만들어져 무한 갱신이 된다.
+  const tripData = useMemo(() => {
+    if (!raw.data) return null;
+    return raw.data.map((trip) => {
       const need = Math.max(
         MIN_TRIP_SEC,
         (straightKm(trip.p) / MAX_KMH) * 3600,
@@ -140,10 +142,12 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
       const dur = trip.t[1] - trip.t[0];
       return dur >= need
         ? trip
-        : { ...trip, t: [trip.t[0], Math.round(trip.t[0] + need)] as [number, number] };
+        : {
+            ...trip,
+            t: [trip.t[0], Math.round(trip.t[0] + need)] as [number, number],
+          };
     });
-    return { ...raw, data: fixed };
-  }, [raw]);
+  }, [raw.data]);
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
   const ghosts = useData<GhostPoint[]>(DATA.ghosts);
   const stats = useData<Stats>(DATA.stats);
@@ -178,14 +182,14 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   }, [playing, speed]);
 
   const activeCount = useMemo(() => {
-    if (!trips.data) return 0;
+    if (!tripData) return 0;
     // Recompute at most ~1/sec of simulated coarse time to keep it cheap.
     const t = Math.floor(time / 60) * 60;
     let n = 0;
-    for (const trip of trips.data) if (trip.t[0] <= t && t <= trip.t[1]) n += 1;
+    for (const trip of tripData) if (trip.t[0] <= t && t <= trip.t[1]) n += 1;
     return n;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trips.data, Math.floor(time / 60)]);
+  }, [tripData, Math.floor(time / 60)]);
 
   // Running totals since midnight, advancing with the clock (per sim-minute).
   const ghostTotals = useMemo(() => {
@@ -220,11 +224,11 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
         }),
       );
     }
-    if (trips.data) {
+    if (tripData) {
       out.push(
         new TripsLayer<AnimTrip>({
           id: "flow-trips",
-          data: trips.data,
+          data: tripData,
           getPath: (d) => d.p,
           getTimestamps: (d) => d.t,
           getColor: (d) =>
@@ -239,12 +243,12 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
         }),
       );
     }
-    if (showEndpoints && trips.data) {
+    if (showEndpoints && tripData) {
       const age = (eventTime: number) => (time - eventTime + DAY) % DAY;
-      const departures = trips.data.filter(
+      const departures = tripData.filter(
         (trip) => age(trip.t[0]) <= ENDPOINT_FADE,
       );
-      const arrivals = trips.data.filter(
+      const arrivals = tripData.filter(
         (trip) => age(trip.t[1]) <= ENDPOINT_FADE,
       );
       out.push(
@@ -301,7 +305,7 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
       );
     }
     return out;
-  }, [trips.data, dongs.data, ghosts.data, showEndpoints, showGhosts, time]);
+  }, [tripData, dongs.data, ghosts.data, showEndpoints, showGhosts, time]);
 
   const getTooltip = useMemo<MapSpec["getTooltip"]>(() => {
     return (info) => {
@@ -462,12 +466,12 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
           </li>
         </ul>
         <p className="mt-2 text-[11px] leading-4 text-dim">
-          완료된 두리발 운행 {trips.data ? fmt(trips.data.length) : "—"}건을 하루
+          완료된 두리발 운행 {tripData ? fmt(tripData.length) : "—"}건을 하루
           시각에 맞춰 재생합니다. 꼬리 길이는 {TRAIL}초입니다.
         </p>
       </Section>
 
-      {!trips.data && (
+      {!tripData && (
         <DataPending note="trips_anim.json 대기 중 — 이동 애니메이션이 재생됩니다." />
       )}
 
