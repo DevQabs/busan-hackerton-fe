@@ -52,7 +52,7 @@ import {
   TOOLTIP_ITEM_STYLE,
   TOOLTIP_LABEL_STYLE,
 } from "@/components/charts/theme";
-import { ActionCard, Chip, KpiTile } from "@/components/PresentationLayoutWide";
+import { Chip, KpiTile } from "@/components/PresentationLayoutWide";
 import { DataPending } from "@/components/ui/DataPending";
 import { fmt, pct } from "@/lib/format";
 import { HEX, RGB_UNMET } from "@/lib/palette";
@@ -89,18 +89,6 @@ const canon = (s: string) => s.replace("제", "");
 /* 로컬 UI 헬퍼                                                        */
 /* ------------------------------------------------------------------ */
 
-/** status 표기 — final(본선)만 배지로 보여준다. */
-function StatusBadge({ status }: { status?: ModelResult["status"] }) {
-  if (status === "final") {
-    return (
-      <span className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[9.5px] text-dim">
-        본선 확정치
-      </span>
-    );
-  }
-  return null;
-}
-
 /** 탭 블록 셸 — 상단 KPI 밴드(선택) + 차트(좌) : 해석(우) = 3:2. */
 function BlockShell({
   title,
@@ -122,7 +110,7 @@ function BlockShell({
         {badge}
       </header>
       {kpis && (
-        <div className="flex flex-wrap gap-2 border-b border-line px-3 py-2.5">
+        <div className="grid grid-flow-col auto-cols-fr gap-2 border-b border-line px-3 py-2.5">
           {kpis}
         </div>
       )}
@@ -134,16 +122,19 @@ function BlockShell({
   );
 }
 
-/** 해석 패널 3단(어떻게 계산했나 / 결과 수치 / 그래서) + caveats 각주. */
+/** 해석 패널 3단(어떻게 계산했나 / 결과 수치 / 그래서) + caveats 각주.
+ *  policy를 주면 '그래서' 박스 안에 정책 제안(소관·실행·근거 수치)을 잇는다. */
 function ExplainPanel({
   how,
   result,
   so,
+  policy,
   caveats,
 }: {
   how: string;
   result: ReactNode;
   so: string;
+  policy?: { owner: string; action: string; impact: string };
   caveats?: string;
 }) {
   return (
@@ -160,9 +151,24 @@ function ExplainPanel({
         </div>
         <div className="mt-0.5">{result}</div>
       </div>
-      <div className="rounded bg-[#0e1424] px-2.5 py-2 text-[11.5px] leading-5 text-ink/90">
-        💡 <b className="text-accent">그래서 · </b>
-        {so}
+      <div className="rounded bg-[#0e1424] px-2.5 py-2">
+        <p className="text-[11.5px] leading-5 text-ink/90">
+          💡 <b className="text-accent">그래서 · </b>
+          {so}
+        </p>
+        {policy && (
+          <div className="mt-1.5 border-t border-line/60 pt-1.5">
+            <p className="text-[12px] font-bold leading-5 text-ink">
+              {policy.action}
+            </p>
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10.5px] leading-4 text-dim">
+              <span className="rounded border border-line bg-panel px-1.5 py-px text-ink/80">
+                소관 {policy.owner}
+              </span>
+              <span className="tnum">{policy.impact}</span>
+            </p>
+          </div>
+        )}
       </div>
       {caveats && (
         <p className="mt-auto border-t border-line pt-1.5 text-[10px] leading-4 text-dim">
@@ -224,7 +230,7 @@ function DispatchHourlyCharts({
       <div className="text-[10px] font-semibold leading-4 text-dim">
         시간대별 운행대수 — 동시 진행 운행 건수(일 평균 추정)
       </div>
-      <div style={{ height: 150 }}>
+      <div style={{ height: 175 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} syncId="disp" margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
             <XAxis
@@ -254,7 +260,7 @@ function DispatchHourlyCharts({
       <div className="mt-1.5 text-[10px] font-semibold leading-4 text-dim">
         시간대별 미배차율 — 점선 = 전체 평균 {pct(avgRate, 1)}
       </div>
-      <div style={{ height: 150 }}>
+      <div style={{ height: 175 }}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} syncId="disp" margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
             <XAxis
@@ -320,7 +326,7 @@ function MonthlyRateChart({ rows }: { rows: DispatchMonthly[] }) {
       <div className="text-[10px] font-semibold leading-4 text-dim">
         월별 미배차율 (2025-03 ~ 2026-03) — 특정 달의 문제가 아니다
       </div>
-      <div style={{ height: 110 }}>
+      <div style={{ height: 135 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
             <XAxis
@@ -493,7 +499,7 @@ function DistanceBins({ hd }: { hd: HospitalDistance }) {
 type Tab = "dispatch" | "infra" | "silent";
 
 const TABS: { key: Tab; label: string; caption: string }[] = [
-  { key: "dispatch", label: "① 미배차 통계", caption: "시간대별 운행 · 미배차 (본선)" },
+  { key: "dispatch", label: "① 미배차 통계", caption: "시간대별 운행 · 미배차" },
   { key: "infra", label: "② 인프라 순효과", caption: "시설 +1의 기대 효과" },
   { key: "silent", label: "③ 침묵 지역", caption: "병원까지의 거리 검정" },
 ];
@@ -504,7 +510,7 @@ const FAC_DEF: Record<
   Facility,
   { label: string; irrKey: string; color: string; countSrc: string }
 > = {
-  charger: { label: "충전소", irrKey: "chargers", color: HEX.accent, countSrc: "본선 시설 수" },
+  charger: { label: "충전소", irrKey: "chargers", color: HEX.accent, countSrc: "시설 수" },
   welfare: { label: "복지시설", irrKey: "welfare", color: HEX.infra, countSrc: "전역 POI 수" },
 };
 
@@ -721,14 +727,13 @@ export function StatisticalEvidenceScene({
         {tab === "dispatch" && (
           <BlockShell
             title="미배차 통계 — 시간대별 운행대수와 미배차 확률"
-            badge={<StatusBadge status={disp.data?.meta.status} />}
             kpis={
               disp.data && (
                 <>
                   <KpiTile
                     label="접수 (13개월)"
                     value={fmt(disp.data.totals.requests)}
-                    sub="본선 해운대 전수"
+                    sub="해운대 전수"
                     color={HEX.demand}
                   />
                   <KpiTile
@@ -772,7 +777,7 @@ export function StatisticalEvidenceScene({
             }
             panel={
               <ExplainPanel
-                how="본선 해운대 13개월 접수 43,891건을 접수 시각 기준 24개 시간대로 집계했습니다. 미배차 = 배차 자체가 되지 않은 접수, 운행대수 = 배차~하차가 동시에 진행 중인 건수(차량 ID가 없어 하한 추정)."
+                how="해운대 13개월 접수 43,891건을 접수 시각 기준 24개 시간대로 집계했습니다. 미배차 = 배차 자체가 되지 않은 접수, 운행대수 = 배차~하차가 동시에 진행 중인 건수(차량 ID가 없어 하한 추정)."
                 result={
                   disp.data ? (
                     <div>
@@ -803,7 +808,12 @@ export function StatisticalEvidenceScene({
                     <span className="text-[11px] text-dim">데이터 준비 중</span>
                   )
                 }
-                so="심야·저녁 시간대 운행 재배치(증차·교대 조정)의 근거 — 접수는 남아 있는데 차가 먼저 사라진다."
+                so="접수는 남아 있는데 차가 먼저 사라진다 — 저녁 시간대 운행 재배치의 근거."
+                policy={{
+                  owner: "부산시설공단",
+                  action: "운행이 꺼지는 저녁 시간대 증차·교대 조정",
+                  impact: `21시 미배차 ${peakHour ? pct(peakHour.unassignedRate, 1) : "—"} · 미배차 ${disp.data ? fmt(disp.data.totals.unassigned) : "—"}건/13개월`,
+                }}
                 caveats={disp.data?.meta.note}
               />
             }
@@ -814,7 +824,6 @@ export function StatisticalEvidenceScene({
         {tab === "infra" && (
           <BlockShell
             title="인프라 순효과 — 시설이 1개 늘면 방문이 얼마나 느는가"
-            badge={<StatusBadge status={nb?.status} />}
             kpis={
               simRows && (
                 <>
@@ -866,7 +875,7 @@ export function StatisticalEvidenceScene({
                         <span className="text-right">월평균 도착</span>
                         <span className="text-right">+1 기대 증가 (95% CI)</span>
                       </div>
-                      <div className="max-h-[300px] overflow-y-auto">
+                      <div className="max-h-[430px] overflow-y-auto">
                         {simRows.rows.map((r) => (
                           <div
                             key={r.name}
@@ -947,9 +956,14 @@ export function StatisticalEvidenceScene({
                   )
                 }
                 so="시설이 0~1개인 동(수요는 있는데 인프라가 빈 곳)부터 충전소·복지시설을 보강하는 우선순위의 근거."
+                policy={{
+                  owner: "지자체·구청",
+                  action: "충전소 0개 동부터 +1 보강 (격차 동 우선)",
+                  impact: `충전소 IRR ×${numFmt(nb?.numbers, "irr_chargers", 2)} · 우3동 ${u3 ? u3.gapPp.toFixed(1) : "—"}%p · 반여1동 ${by1 ? by1.gapPp.toFixed(1) : "—"}%p`,
+                }}
                 caveats={
                   (nb?.caveats ? `${nb.caveats} ` : "") +
-                  "표의 '+1 기대 증가'는 리허설 IRR × 본선 월평균 도착의 명시적 근사 — 관찰 데이터라 인과 단정 불가."
+                  "표의 '+1 기대 증가'는 IRR × 월평균 도착의 명시적 근사 — 관찰 데이터라 인과 단정 불가."
                 }
               />
             }
@@ -960,7 +974,6 @@ export function StatisticalEvidenceScene({
         {tab === "silent" && (
           <BlockShell
             title="침묵 지역 — 외곽은 병원이 멀어서 안 타는가?"
-            badge={<StatusBadge status={hosp.data?.meta.status} />}
             chart={
               hosp.data ? (
                 <div>
@@ -971,7 +984,7 @@ export function StatisticalEvidenceScene({
                       동별 병원행 평균 직선거리 — 진할수록 멀다 (회색 = 표본
                       부족)
                     </div>
-                    <div className="relative h-[280px] overflow-hidden rounded-lg border border-line">
+                    <div className="relative h-[320px] overflow-hidden rounded-lg border border-line">
                       {map}
                     </div>
                   </div>
@@ -1010,47 +1023,18 @@ export function StatisticalEvidenceScene({
                     <span className="text-[11px] text-dim">데이터 준비 중</span>
                   )
                 }
-                so="외곽 침묵 지역 대책은 배차 확충보다 거리 부담 완화 — 순회·거점 진료, 병원 셔틀 연계, 장거리 병원행 요금 지원이 제안 방향."
+                so="외곽 침묵 지역 대책은 배차 확충보다 거리 부담 완화가 제안 방향."
+                policy={{
+                  owner: "지자체·공단",
+                  action: "장거리 병원행 셔틀·순회 진료 연계",
+                  impact: `외곽 병원행 평균 ${hosp.data?.dongs[0]?.meanHospKm ?? "—"}km · 좌4동 1천명당 ${j4 && j4.per1k !== null ? fmt(j4.per1k) : "—"}건 · 전역 포기 추정 ${numFmt(funnel?.numbers, "abandoned")}건/월`,
+                }}
                 caveats={hosp.data?.meta.note}
               />
             }
           />
         )}
 
-        {/* ══ 제안 밴드 — 세 통계에서 나온 제안 ════════════════════════ */}
-        <section className="rounded-lg border border-line bg-panel">
-          <header className="border-b border-line px-3.5 py-2.5">
-            <h2 className="text-[13px] font-bold leading-5 text-ink">
-              제안 — 근거에서 정책으로
-            </h2>
-          </header>
-          {compare.data ? (
-            <div className="flex flex-wrap items-stretch gap-3 p-3">
-              <ActionCard
-                eyebrow="제안 1 · 저녁 운행 재배치"
-                owner="부산시설공단"
-                action="운행이 꺼지는 저녁 시간대 증차·교대 조정"
-                impact={`21시 미배차 ${peakHour ? pct(peakHour.unassignedRate, 1) : "—"} · 본선 미배차 ${disp.data ? fmt(disp.data.totals.unassigned) : "—"}건/13개월`}
-              />
-              <ActionCard
-                eyebrow="제안 2 · 시설 빈 동 우선 보강"
-                owner="지자체·구청"
-                action="충전소 0개 동부터 +1 보강 (격차 동 우선)"
-                impact={`충전소 IRR ×${numFmt(nb?.numbers, "irr_chargers", 2)} · 우3동 ${u3 ? u3.gapPp.toFixed(1) : "—"}%p · 반여1동 ${by1 ? by1.gapPp.toFixed(1) : "—"}%p`}
-              />
-              <ActionCard
-                eyebrow="제안 3 · 외곽 거리 부담 완화"
-                owner="지자체·공단"
-                action="장거리 병원행 셔틀·순회 진료 연계"
-                impact={`외곽 병원행 평균 ${hosp.data?.dongs[0]?.meanHospKm ?? "—"}km · 좌4동 1천명당 ${j4 && j4.per1k !== null ? fmt(j4.per1k) : "—"}건 · 전역 포기 추정 ${numFmt(funnel?.numbers, "abandoned")}건/월`}
-              />
-            </div>
-          ) : (
-            <div className="p-3">
-              <DataPending note="dong_compare.json 대기 중 — 제안 근거 수치" />
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
