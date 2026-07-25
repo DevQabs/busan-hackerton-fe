@@ -1547,14 +1547,6 @@ export function BlindspotsHaeundaeScene({
           </div>
         );
       })()}
-
-      {/* 3막 연결은 주제마다 반복하지 않고 여기 한 줄로 모은다 — 발표 마무리도
-          이 줄을 가리킨다. */}
-      <div className="mt-2 border-t border-line pt-1.5 text-[10.5px] leading-4 text-accent/90">
-        → 3막(통계 대시보드): 어떤 시설을 어디에 먼저 채워야 이 격차가 줄어드는가
-        — 요인별 기여도를 가중치로 분리합니다. 이 화면은 문제의 위치를 특정하는
-        단계까지입니다.
-      </div>
     </div>
   ) : null;
 
