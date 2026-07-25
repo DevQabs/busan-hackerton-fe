@@ -9,3 +9,6 @@ __pycache__/
 
 # Raw hackathon inputs + finals sample (organizer data — not committed)
 /data/
+
+# AI agent tooling state (session logs, replays, checkpoints)
+/.omc/

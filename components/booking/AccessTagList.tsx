@@ -20,7 +20,7 @@ export function VerdictBadge({ status }: { status: AccessStatus }) {
   const hex = CLS_HEX[status.cls];
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-medium lg:px-2 lg:py-0.5 lg:text-[11px]"
       style={{ background: `${hex}22`, color: hex, border: `1px solid ${hex}55` }}
     >
       <span
@@ -41,7 +41,7 @@ export function ChainLine({ status }: { status: AccessStatus }) {
     { label: "편의", ok: status.comfort },
   ];
   return (
-    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px]">
+    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[12.5px] lg:text-[11px]">
       {steps.map((s, i) => (
         <span key={s.label} className="flex items-center gap-1.5">
           {i > 0 && <span className="text-dim">→</span>}
@@ -70,7 +70,7 @@ export function AccessTagList({
         return (
           <li
             key={t.key}
-            className="rounded px-1.5 py-0.5 text-[10px] leading-tight tnum"
+            className="tnum rounded px-2 py-1 text-[11.5px] leading-tight lg:px-1.5 lg:py-0.5 lg:text-[10px]"
             style={{
               background: `${hex}1a`,
               color: hex,
@@ -93,7 +93,7 @@ export function FixLine({ status }: { status: AccessStatus }) {
   if (status.barrier === "완비") return null;
   const { label, owner } = actionOf(status.barrier);
   return (
-    <p className="text-[11px] text-dim">
+    <p className="text-[12px] leading-relaxed text-dim lg:text-[11px]">
       개선: {label} <span className="opacity-70">({owner})</span>
     </p>
   );

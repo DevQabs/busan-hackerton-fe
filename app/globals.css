@@ -63,6 +63,14 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
+/* 가로 스크롤 칩 줄 — 폰에서 스크롤바가 칩 아래 한 줄을 더 잡아먹지 않게. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* deck.gl default tooltip container — neutralize, we style via getTooltip */
 .deck-tooltip {
   z-index: 30;
