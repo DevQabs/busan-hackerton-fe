@@ -45,6 +45,11 @@ export interface FitStep {
   state: Fit;
   /** 판정 근거 (원자료 표현) */
   note: string;
+  /** 같은 근거를 귀로 듣는 문장. note는 화면용 축약이라 그대로 읽히면 무너진다
+   *  ("입구 턱 여부 미조사", "경사로 있음 — 기울기 미기재"). 낭독 문장을 여기,
+   *  판정 바로 옆에 두는 이유는 두 표현이 갈라지지 않게 하기 위해서다.
+   *  fit 단계에는 없다 — 통과한 항목은 소리로 말하지 않는다. */
+  spoken?: string;
 }
 
 export interface WheelchairFit {
@@ -83,6 +88,7 @@ export function wheelchairFit(
         label: "층이동",
         state: "check",
         note: "1층이 아니고 엘리베이터가 없어 계단을 이용해야 합니다",
+        spoken: "1층이 아니고 엘리베이터가 없어 계단을 올라가야 합니다.",
       });
     }
 
@@ -96,12 +102,22 @@ export function wheelchairFit(
 
   // ── 입구 ──────────────────────────────────────────────────────────────
   if (has("입구턱")) {
-    steps.push({ label: "입구", state: "unfit", note: "입구에 턱 있음" });
+    steps.push({
+      label: "입구",
+      state: "unfit",
+      note: "입구에 턱 있음",
+      spoken: "입구에 턱이 있습니다.",
+    });
   } else if (has("입구무턱")) {
     steps.push({ label: "입구", state: "fit", note: "입구 턱 없음(실사 확인)" });
   } else {
     // 입구턱=N + 입구무턱=N: 실사에서 입구를 기록하지 않았다는 뜻.
-    steps.push({ label: "입구", state: "check", note: "입구 턱 여부 미조사" });
+    steps.push({
+      label: "입구",
+      state: "check",
+      note: "입구 턱 여부 미조사",
+      spoken: "입구에 턱이 있는지가 실사에 기록돼 있지 않습니다.",
+    });
   }
 
   // ── 층이동 ────────────────────────────────────────────────────────────
@@ -114,6 +130,7 @@ export function wheelchairFit(
       label: "층이동",
       state: "unfit",
       note: "1층이 아니고 엘리베이터 없음",
+      spoken: "1층이 아닌데 엘리베이터가 없습니다.",
     });
   }
 
@@ -126,7 +143,12 @@ export function wheelchairFit(
   if (has("장애인화장실")) {
     steps.push({ label: "화장실", state: "fit", note: "장애인화장실 있음" });
   } else if (has("화장실턱")) {
-    steps.push({ label: "화장실", state: "unfit", note: "화장실에 턱 있음" });
+    steps.push({
+      label: "화장실",
+      state: "unfit",
+      note: "화장실에 턱 있음",
+      spoken: "화장실에 턱이 있습니다.",
+    });
   } else if (has("화장실무턱")) {
     steps.push({ label: "화장실", state: "fit", note: "화장실 턱 없음" });
   } else {
@@ -139,6 +161,8 @@ export function wheelchairFit(
       label: "경사로",
       state: RAMP_FOR_MANUAL,
       note: "경사로 있음 — 기울기 미기재, 수동 휠체어는 현장 확인 권장",
+      spoken:
+        "경사로가 있지만 기울기가 기록돼 있지 않아, 수동 휠체어는 현장에서 확인하시는 편이 좋습니다.",
     });
   }
 

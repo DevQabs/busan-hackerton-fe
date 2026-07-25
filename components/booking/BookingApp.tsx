@@ -1701,6 +1701,22 @@ function composeAnswer({
     parts.push(
       `가장 가까운 곳은 ${nearest.shop.name}, ${spokenDistance(nearest.distanceM)}입니다.`,
     );
+
+    // 그 곳이 '확인 필요'라면 무엇을 확인해야 하는지까지 말한다. 등급만 들려주면
+    // 화면을 못 보는 사람이 할 수 있는 행동이 없다 — 전화로 무엇을 물어야 할지,
+    // 도착해서 무엇을 볼지가 사유에 들어 있고, 그 사유는 화면 카드에만 있었다.
+    // 귀로 붙잡을 수 있는 건 두 가지까지다. 세 번째부터는 화면·스크린리더 목록에 남긴다.
+    const why = nearest.fit.steps
+      .filter((s) => s.state !== "fit")
+      .map((s) => s.spoken ?? s.note)
+      .slice(0, 2);
+    if (nearest.fit.fit === "check" && why.length > 0) {
+      // chair === "none"이면 판정 이름("확인 필요")을 쓰지 않는다 — 위와 같은 이유로
+      // 하지 않은 검사를 발견처럼 말하지 않기 위해서다. 관찰한 사실만 그대로 말한다.
+      parts.push(
+        chair === "none" ? why.join(" ") : `다만 확인이 필요합니다. ${why.join(" ")}`,
+      );
+    }
   }
 
   // 4) 다음에 무엇을 할 수 있는지. 화면을 못 보는 사람에게 낭독이 끝난 정적은
