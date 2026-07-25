@@ -89,15 +89,8 @@ const canon = (s: string) => s.replace("제", "");
 /* 로컬 UI 헬퍼                                                        */
 /* ------------------------------------------------------------------ */
 
-/** status 자동 분기 — rehearsal이면 경고 배지, final이면 확정 표기. */
+/** status 표기 — final(본선)만 배지로 보여준다. */
 function StatusBadge({ status }: { status?: ModelResult["status"] }) {
-  if (status === "rehearsal") {
-    return (
-      <span className="shrink-0 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 text-[9.5px] font-semibold text-warn">
-        리허설 적합치 · 본선 재적합 예정
-      </span>
-    );
-  }
   if (status === "final") {
     return (
       <span className="shrink-0 rounded border border-line px-1.5 py-0.5 text-[9.5px] text-dim">
