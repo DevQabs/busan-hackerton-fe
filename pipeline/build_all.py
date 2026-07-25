@@ -406,17 +406,20 @@ def process_trips(dong_match):
                 # animated trips: O + D coords inside Busan bbox, 승차 required
                 if o_xy and d_xy and t_board and in_bbox(*o_xy) and in_bbox(*d_xy):
                     depart = t_board.hour * 3600 + t_board.minute * 60 + t_board.second
+                    try:
+                        km = float(row.get('거리(km)') or 0)
+                    except (TypeError, ValueError):
+                        km = 0.0
                     dur = None
                     if t_drop:
                         dur = (t_drop - t_board).total_seconds()
-                        if dur <= 0:
+                        # 승차·하차를 동시에 찍은 행이 있다: 13km를 1초로 만들어
+                        # 애니메이션에서 총알처럼 튄다. 60초 미만이거나 도심에서
+                        # 불가능한 속도(>60km/h)면 관측이 아니라 입력 실수로 본다.
+                        if dur <= 0 or dur < 60 or (km > 0 and km / (dur / 3600) > 60):
                             dur = None
                     if dur is None:
                         # fallback: 3 min per km, at least 5 min
-                        try:
-                            km = float(row.get('거리(km)') or 0)
-                        except (TypeError, ValueError):
-                            km = 0.0
                         dur = max(300.0, km * 180.0)
                     anim.append({
                         'p': [[round(o_xy[0], 4), round(o_xy[1], 4)],

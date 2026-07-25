@@ -25,12 +25,37 @@ import { Explainer } from "@/components/ui/Explainer";
 
 const DAY = 86400;
 const TRAIL = 180; // seconds of trail behind each moving dot
+/** 원자료에는 승차·하차를 동시에 찍은 행이 있다 — 13km를 1초에 잇는 궤적이
+ *  총알처럼 보인다. 거리로 최소 소요를 되살려 물리적으로 가능한 속도로 낮춘다
+ *  (도심 상한 60km/h, 최소 3분). 파이프라인도 같은 규칙으로 고쳤다. */
+const MAX_KMH = 60;
+const MIN_TRIP_SEC = 180;
 const SPEEDS = [30, 120, 300] as const;
 const GHOST_FADE = 20 * 60; // ghost dot fades out over ~20 simulated minutes
 const ENDPOINT_FADE = 8 * 60;
 
+function straightKm(p: AnimTrip["p"]): number {
+  const dx = (p[0][0] - p[1][0]) * 91;
+  const dy = (p[0][1] - p[1][1]) * 111.32;
+  return Math.hypot(dx, dy);
+}
+
 export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
-  const trips = useData<AnimTrip[]>(DATA.tripsAnim);
+  const raw = useData<AnimTrip[]>(DATA.tripsAnim);
+  const trips = useMemo(() => {
+    if (!raw.data) return raw;
+    const fixed = raw.data.map((trip) => {
+      const need = Math.max(
+        MIN_TRIP_SEC,
+        (straightKm(trip.p) / MAX_KMH) * 3600,
+      );
+      const dur = trip.t[1] - trip.t[0];
+      return dur >= need
+        ? trip
+        : { ...trip, t: [trip.t[0], Math.round(trip.t[0] + need)] as [number, number] };
+    });
+    return { ...raw, data: fixed };
+  }, [raw]);
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
   const ghosts = useData<GhostPoint[]>(DATA.ghosts);
 
