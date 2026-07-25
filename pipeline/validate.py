@@ -7,6 +7,7 @@ import json
 import math
 import os
 import sys
+from collections import defaultdict
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(BASE, 'public', 'data')
@@ -37,6 +38,33 @@ def load(name):
 
 def in_bbox(lng, lat):
     return LNG[0] <= lng <= LNG[1] and LAT[0] <= lat <= LAT[1]
+
+
+def _rank(vals):
+    """Average-rank transform for Spearman correlation (ties share the mean rank)."""
+    order = sorted(range(len(vals)), key=lambda i: vals[i])
+    ranks = [0.0] * len(vals)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and vals[order[j + 1]] == vals[order[i]]:
+            j += 1
+        avg_rank = (i + j) / 2.0 + 1
+        for k in range(i, j + 1):
+            ranks[order[k]] = avg_rank
+        i = j + 1
+    return ranks
+
+
+def _spearman(pairs):
+    xs, ys = [p[0] for p in pairs], [p[1] for p in pairs]
+    rx, ry = _rank(xs), _rank(ys)
+    n = len(xs)
+    mx, my = sum(rx) / n, sum(ry) / n
+    cov = sum((rx[i] - mx) * (ry[i] - my) for i in range(n))
+    vx = sum((r - mx) ** 2 for r in rx)
+    vy = sum((r - my) ** 2 for r in ry)
+    return cov / math.sqrt(vx * vy) if vx > 0 and vy > 0 else 0.0
 
 
 def main():
@@ -273,6 +301,74 @@ def main():
           and tpc['colTotals'] == [sum(r[j] for r in tpc['counts'])
                                    for j in range(len(tpc['purposes']))],
           'typePurpose row/col totals consistent')
+
+    # dispatch_eta.json
+    try:
+        from build_all import F_TRIPS
+        with open(F_TRIPS, encoding='cp949') as tf:
+            header = tf.readline()
+        origin_cols_present = all(c in header for c in ('출발지 행정동', '접수시간', '승차'))
+    except OSError:
+        origin_cols_present = None  # source file unreachable here — skip positive-assertion
+
+    de_path = os.path.join(OUT, 'dispatch_eta.json')
+    if not os.path.exists(de_path):
+        if origin_cols_present:
+            check(False, 'dispatch_eta.json missing even though source CSV has the needed columns')
+        else:
+            lines.append('  SKIP dispatch_eta.json not generated (source columns unavailable)')
+    else:
+        de, de_size = load('dispatch_eta.json')
+        check(de_size <= 1.5 * 1024 * 1024, 'dispatch_eta.json <= 1.5MB')
+        de_cells = de.get('cells', [])
+        if not de_cells:
+            if origin_cols_present:
+                check(de.get('meta', {}).get('status') != 'ok',
+                      'dispatch_eta.json cells empty but source columns present — status must not be "ok"')
+            else:
+                lines.append('  SKIP dispatch_eta.json cells empty (graceful degrade, expected)')
+        else:
+            adm_cds = {f['properties']['admCd'] for f in feats}
+            cd_set = {c['admCd'] for c in de_cells}
+            check(cd_set == adm_cds, 'dispatch_eta admCd covers exactly the 206 dongs')
+            hours_by_dong = defaultdict(set)
+            for c in de_cells:
+                hours_by_dong[c['admCd']].add(c['hour'])
+            check(all(hs == set(range(24)) for hs in hours_by_dong.values()),
+                  'dispatch_eta hour 0..23 present for every dong')
+            check(all(1 <= c['minutes'] <= 240 for c in de_cells),
+                  'dispatch_eta minutes within plausible range [1,240]')
+            check(all(c['ci'] is None or c['ci'][0] <= c['minutes'] <= c['ci'][1]
+                      for c in de_cells),
+                  'dispatch_eta ci brackets minutes')
+
+            admcd_to_gu = {f['properties']['admCd']: f['properties']['gu'] for f in feats}
+            widths_by_dong = defaultdict(list)
+            n_by_dong = {}
+            for c in de_cells:
+                if c['ci'] is not None:
+                    widths_by_dong[c['admCd']].append(c['ci'][1] - c['ci'][0])
+                    n_by_dong[c['admCd']] = c['n']
+            by_gu = defaultdict(list)
+            for cd, widths in widths_by_dong.items():
+                by_gu[admcd_to_gu[cd]].append((n_by_dong[cd], sum(widths) / len(widths)))
+            rhos = [_spearman(pairs) for pairs in by_gu.values()
+                    if len(set(n for n, _ in pairs)) >= 2]
+            if rhos:
+                rhos.sort()
+                median_rho = rhos[len(rhos) // 2]
+                check(median_rho <= 0.1,
+                      f'dispatch_eta CI-width vs sample-size: median spearman rho <= 0.1 '
+                      f'across gu groups (got {median_rho:.2f})')
+
+            num = sum(math.log(c['minutes']) * c['n'] for c in de_cells if c['ci'] is not None)
+            den = sum(c['n'] for c in de_cells if c['ci'] is not None)
+            if den > 0:
+                gm = math.exp(num / den)
+                med = stats['waitMinutes']['median']
+                check(0.5 * med <= gm <= 2 * med,
+                      f'dispatch_eta n-weighted geometric-mean minutes ({gm:.1f}) within '
+                      f'0.5-2x citywide waitMinutes.median ({med})')
 
     print('\n'.join(lines))
     if errors:

@@ -1,4 +1,4 @@
-// Six presentation pages. The combined pages compose several analytical
+// Presentation pages. The combined pages compose several analytical
 // datasets into a shared map instead of exposing the old scenes as navigation.
 
 export type PageId =
@@ -7,7 +7,8 @@ export type PageId =
   | "infrastructure"
   | "blindspots"
   | "dispatch-analysis"
-  | "statistics";
+  | "statistics"
+  | "dispatchEta";
 
 export interface PageDef {
   id: PageId;
@@ -45,5 +46,10 @@ export const PAGES: PageDef[] = [
     id: "statistics",
     label: "통계 대시보드",
     caption: "우선순위 지도와 세 가지 근거",
+  },
+  {
+    id: "dispatchEta",
+    label: "배차 예측 지도",
+    caption: "동×시간대 예상 배차 대기시간",
   },
 ];

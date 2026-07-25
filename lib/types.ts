@@ -121,6 +121,35 @@ export interface WaitKm {
   fleet: { hour: number; avgActive: number; maxActive: number }[];
 }
 
+/** public/data/dispatch_eta.json — 동×시간대 예상 배차 대기시간 ("배차 예측 지도").
+ *  Estimate = **접수→승차** (완료 트립, 즉시배차만) — WaitKm의 배차(assign) 기준과는
+ *  다르다. 구(16개) 단위 공유 harmonic 곡선 + 동별 James-Stein 절편 축소로 계산한
+ *  통계적 추정치이며 실시간 예측이 아니다. 원본 CSV에 출발지 컬럼이 없으면(예:
+ *  파이널 데이터 스키마 변경) cells가 빈 배열로 emit된다 — od.json/unmet.json과
+ *  동일한 그레이스풀 디그레이드 패턴. */
+export interface DispatchEtaCell {
+  admCd: string;  // 행정동코드 10자리 (출발지 기준)
+  hour: number;   // 접수시각 0..23
+  minutes: number; // 예상 대기(분), 접수→승차 기하평균
+  /** 95% 신뢰구간 [lo, hi]; 표본이 극히 적은 동×시간일수록 폭이 넓어진다 */
+  ci: [number, number] | null;
+  /** 해당 동의 표본수(24시간 합계, dong-level — cell별로 다르지 않다) */
+  n: number;
+  /** 해당 동×시간 접수 전체 중 미배차+취소 비율(0..1); 0건이면 0 */
+  unassignedShare: number;
+}
+export interface DispatchEtaMeta {
+  status: "ok" | "unavailable";
+  generatedAt?: string;
+  method?: string;
+  note?: string;      // status "unavailable"일 때 사유
+  caveats?: string;   // status "ok"일 때 정직성 캡션 (Korean)
+}
+export interface DispatchEtaData {
+  cells: DispatchEtaCell[];
+  meta: DispatchEtaMeta;
+}
+
 /** public/data/arrival_deserts.json — door-level scoring of dropoff hotspots
  *  against nearby infrastructure ("도착지 사각지대"), plus a greedy
  *  maximal-coverage suggestion of next-K facility locations. */
@@ -263,6 +292,7 @@ export const DATA = {
   tripsAnim: "/data/trips_anim.json",
   ghosts: "/data/ghosts.json",
   waitKm: "/data/wait_km.json",
+  dispatchEta: "/data/dispatch_eta.json",
   arrivalDeserts: "/data/arrival_deserts.json",
   accessActions: "/data/access_actions.json",
   unmet: "/data/unmet.json",

@@ -11,6 +11,7 @@ import { BlindspotsScene } from "@/components/scenes/BlindspotsScene";
 import { InfrastructureScene } from "@/components/scenes/InfrastructureScene";
 import { DispatchScene } from "@/components/scenes/DispatchScene";
 import { StatisticsScene } from "@/components/scenes/StatisticsScene";
+import { DispatchEtaScene } from "@/components/scenes/DispatchEtaScene";
 
 /** Pages rebuilt as self-contained compositions own the whole content area
  *  (KPI band, map, side column, action strip) and receive the map as a slot.
@@ -42,6 +43,7 @@ export default function Dashboard() {
     <>
       {page === "overview" && <OverviewScene onMapSpec={onMapSpec} />}
       {page === "flow" && <FlowScene onMapSpec={onMapSpec} />}
+      {page === "dispatchEta" && <DispatchEtaScene onMapSpec={onMapSpec} />}
     </>
   );
 

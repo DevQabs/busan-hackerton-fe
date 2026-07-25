@@ -42,6 +42,8 @@ def _find(*candidates):
 F_TRIPS = _find(
     os.path.join(DIVE, '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv'),
     os.path.join(DIVE_ROOT, '부산시설공단 자료',
+                 '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv'),
+    os.path.join(os.path.expanduser('~'), 'Downloads', 'd',
                  '부산시설공단_부산 교통약자 이동지원 차량 운영현황_20250501.csv'))
 F_CHARGERS = _find(os.path.join(DIVE, '전국전동휠체어급속충전기표준데이터.csv'),
                    os.path.join(JARYO, '전국전동휠체어급속충전기표준데이터.csv'))
@@ -227,8 +229,22 @@ def process_trips(dong_match):
     day_dong_drop = Counter()        # (date, admCd) → completed dropoffs
     day_dong_unassigned = Counter()  # (date, admCd) → unassigned pickups
 
+    # --- dispatch ETA (dispatch_eta.json): per (admCd, hour) accumulators ---
+    dispatch_hour = defaultdict(lambda: [
+        {'total': 0, 'unassigned': 0, 'cancelled': 0, 'waits': []} for _ in range(24)])
+    reserve_excluded = 0
+
     with open(F_TRIPS, encoding='cp949') as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        fieldnames = set(reader.fieldnames or [])
+        # Belt-and-suspenders: these 3 are already accessed unconditionally
+        # elsewhere in this loop (접수시간/승차/출발지 행정동), so on a schema
+        # missing them process_trips already fails before reaching this code —
+        # this flag mainly gates the genuinely-new column (예약타입) below and
+        # documents the finals-swap degrade path for dispatch_eta.json.
+        dispatch_eta_ok = {'출발지 행정동', '접수시간', '승차'} <= fieldnames
+        has_reserve_col = '예약타입' in fieldnames
+        for row in reader:
             totals['trips'] += 1
             result = (row['결과'] or '').strip()
             status = (row['상태'] or '').strip()
@@ -345,11 +361,20 @@ def process_trips(dong_match):
                 if o_feat is not None:
                     key = o_feat['properties']['_admCd']
                     dong_demand[key]['pickups'] += 1
+                    if dispatch_eta_ok and t_req:
+                        dispatch_hour[key][t_req.hour]['total'] += 1
                     if t_req and t_board:
                         w_min = (t_board - t_req).total_seconds() / 60.0
                         if 0 <= w_min <= 24 * 60:
                             waits_all.append(w_min)
                             waits_by_dong[key].append(w_min)
+                            if dispatch_eta_ok:
+                                reserve_ok = (not has_reserve_col) or \
+                                    (row.get('예약타입') or '').strip() == '즉시'
+                                if reserve_ok:
+                                    dispatch_hour[key][t_req.hour]['waits'].append(w_min)
+                                else:
+                                    reserve_excluded += 1
                 if d_feat is not None:
                     key = d_feat['properties']['_admCd']
                     dong_demand[key]['dropoffs'] += 1
@@ -387,6 +412,9 @@ def process_trips(dong_match):
             elif cat in ('unassigned', 'cancelled'):
                 if o_feat is not None:
                     dong_demand[o_feat['properties']['_admCd']][cat] += 1
+                    if dispatch_eta_ok and t_req:
+                        dispatch_hour[o_feat['properties']['_admCd']][t_req.hour]['total'] += 1
+                        dispatch_hour[o_feat['properties']['_admCd']][t_req.hour][cat] += 1
                     if cat == 'unassigned' and t_req:
                         day_dong_unassigned[(t_req.date(),
                                              o_feat['properties']['_admCd'])] += 1
@@ -413,6 +441,8 @@ def process_trips(dong_match):
         'day_dong_drop': day_dong_drop, 'day_dong_unassigned': day_dong_unassigned,
         'type_purpose': type_purpose, 'retry_cell_times': retry_cell_times,
         'unmet_events': unmet_events,
+        'dispatch_hour': dispatch_hour, 'dispatch_eta_ok': dispatch_eta_ok,
+        'has_reserve_col': has_reserve_col, 'reserve_excluded': reserve_excluded,
     }
 
 
@@ -980,7 +1010,139 @@ def bootstrap_gap(feats, day_dong_drop, day_dong_unassigned, infra_z, B=500):
 
 
 # ---------------------------------------------------------------------------
-# 10. Core tests for model_results.json (Welch t, chi-square)
+# 10. Dispatch ETA (동×시간대 예상 배차 대기시간) — public/data/dispatch_eta.json
+#
+# Option C′: 구(16개) 단위 공유 2차 harmonic(5계수) 곡선 μ_gu(hour) + 동별
+# 스칼라 절편 b_dong의 James-Stein 축소. log(minutes) = μ_gu(hour) + b_dong.
+# Target = 접수→승차 (완료 트립, 즉시배차만). CI는 곡선 SE + 절편축소 SE의
+# 오차전파. 축소 SE = s/√(n+k) (n에 단조감소, empirical-Bayes 표준식).
+# ---------------------------------------------------------------------------
+
+DISPATCH_ETA_MIN_GU = 3          # 유효 표본 구가 이보다 적으면 빈 아티팩트 emit
+DISPATCH_ETA_MIN_SAMPLES_GU = 30  # 구 단위 harmonic fit에 필요한 최소 표본
+DISPATCH_ETA_MIN_MINUTES = 0.5   # log(0) 방지 하한
+DISPATCH_ETA_RIDGE = 1e-6
+DISPATCH_ETA_SHRINK_K = 8.0      # James-Stein 축소 강도(고정값 — 그 자체의 불확실성은 CI에 미반영)
+
+
+def _harmonic_basis(hour):
+    a1 = 2.0 * math.pi * hour / 24.0
+    return [1.0, math.sin(a1), math.cos(a1), math.sin(2 * a1), math.cos(2 * a1)]
+
+
+def fit_dispatch_eta(T, feats):
+    if not T.get('dispatch_eta_ok'):
+        return {'cells': [], 'meta': {
+            'status': 'unavailable',
+            'note': '출발지 행정동/접수시간/승차 컬럼이 원본 CSV에 없음 (예: 파이널 데이터 스키마 상이) — 계산 생략',
+        }}
+
+    dh = T['dispatch_hour']
+    by_cd = {f['properties']['_admCd']: f for f in feats}
+
+    gu_samples = defaultdict(list)  # gu -> [(hour, log_wait)]
+    for cd, hours in dh.items():
+        f_ = by_cd.get(cd)
+        if f_ is None:
+            continue
+        gu = f_['properties']['_gu']
+        for h, cell in enumerate(hours):
+            for w in cell['waits']:
+                gu_samples[gu].append((h, math.log(max(w, DISPATCH_ETA_MIN_MINUTES))))
+
+    usable_gus = {gu: xs for gu, xs in gu_samples.items()
+                  if len(xs) >= DISPATCH_ETA_MIN_SAMPLES_GU}
+    if len(usable_gus) < DISPATCH_ETA_MIN_GU:
+        return {'cells': [], 'meta': {
+            'status': 'unavailable',
+            'note': f'유효 표본을 가진 구가 {len(usable_gus)}개 (< {DISPATCH_ETA_MIN_GU}) — 회귀 생략',
+        }}
+
+    def _fit(xs):
+        X = [_harmonic_basis(h) for h, _ in xs]
+        y = [ly for _, ly in xs]
+        n, k = len(X), 5
+        A, c = xtwx_xtwz(X, [1.0] * n, y)
+        for i in range(k):
+            A[i][i] += DISPATCH_ETA_RIDGE
+        cov = mat_inv(A)
+        beta = mat_vec(cov, c)
+        resid = [y[i] - sum(X[i][j] * beta[j] for j in range(k)) for i in range(n)]
+        s2 = sum(r * r for r in resid) / max(1, n - k)
+        return {'beta': beta, 'cov': [[v * s2 for v in row] for row in cov], 's2': s2}
+
+    gu_fit = {gu: _fit(xs) for gu, xs in usable_gus.items()}
+    fallback_fit = _fit([xy for xs in usable_gus.values() for xy in xs])
+    n_fallback_gu = 16 - len(gu_fit)
+
+    def mu_and_se(gu, hour):
+        fit = gu_fit.get(gu, fallback_fit)
+        x = _harmonic_basis(hour)
+        mu = sum(x[i] * fit['beta'][i] for i in range(5))
+        var = sum(x[i] * fit['cov'][i][j] * x[j] for i in range(5) for j in range(5))
+        return mu, math.sqrt(max(var, 0.0)), fit['s2']
+
+    cells = []
+    for f_ in feats:
+        cd = f_['properties']['_admCd']
+        gu = f_['properties']['_gu']
+        hours = dh.get(cd) or [
+            {'total': 0, 'unassigned': 0, 'cancelled': 0, 'waits': []} for _ in range(24)]
+
+        waits_by_hour = [[max(w, DISPATCH_ETA_MIN_MINUTES) for w in hours[h]['waits']]
+                         for h in range(24)]
+        n_wait = sum(len(ws) for ws in waits_by_hour)
+        s2_gu = gu_fit.get(gu, fallback_fit)['s2']
+        if n_wait > 0:
+            resid_sum = 0.0
+            for h in range(24):
+                if not waits_by_hour[h]:
+                    continue
+                mu_h, _, _ = mu_and_se(gu, h)
+                resid_sum += sum(math.log(w) - mu_h for w in waits_by_hour[h])
+            b_dong = (n_wait / (n_wait + DISPATCH_ETA_SHRINK_K)) * (resid_sum / n_wait)
+        else:
+            b_dong = 0.0
+        se_b = math.sqrt(s2_gu / (n_wait + DISPATCH_ETA_SHRINK_K))
+
+        for h in range(24):
+            mu_h, se_mu, _ = mu_and_se(gu, h)
+            log_est = mu_h + b_dong
+            se_total = math.sqrt(se_mu ** 2 + se_b ** 2)
+            cell = hours[h]
+            total = cell['total']
+            cells.append({
+                'admCd': cd,
+                'hour': h,
+                'minutes': round(math.exp(log_est), 1),
+                'ci': [round(math.exp(log_est - 1.96 * se_total), 1),
+                       round(math.exp(log_est + 1.96 * se_total), 1)],
+                'n': n_wait,
+                'unassignedShare': round((cell['unassigned'] + cell['cancelled']) / total, 3)
+                                   if total else 0.0,
+            })
+
+    if T.get('has_reserve_col'):
+        reserve_note = f"즉시배차만 사용(예약건 {T.get('reserve_excluded', 0):,}건 제외)"
+    else:
+        reserve_note = '예약타입 컬럼 없음 — 즉시/예약 구분 없이 전량 사용'
+
+    return {
+        'cells': cells,
+        'meta': {
+            'status': 'ok',
+            'generatedAt': datetime.utcnow().isoformat() + 'Z',
+            'method': (f'구 {len(gu_fit)}개 단위 공유 2차 harmonic(5계수) 회귀'
+                       f'(fallback 곡선 사용 구 {n_fallback_gu}개) + 동별 James-Stein '
+                       f'절편 축소(k={DISPATCH_ETA_SHRINK_K:.0f}), 접수→승차·완료 트립 기준'),
+            'caveats': (f'5월 한 달치(부산 전역) 데이터 기반 과거 통계 추정치, 실시간 예측 아님. '
+                        f'{reserve_note}. 축소 강도 k 자체의 불확실성은 신뢰구간에 반영되지 않음.'),
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# 11. Core tests for model_results.json (Welch t, chi-square)
 # ---------------------------------------------------------------------------
 
 def welch_t(a, b):
@@ -1404,6 +1566,15 @@ def main():
            f"| KM median/p90: {wait_km['km']['median']}/{wait_km['km']['p90']} min "
            f"| censoredShare: {wait_km['censoredShare']}")
     dump_json('wait_km.json', wait_km)
+
+    # --- dispatch_eta.json ---
+    report('=== dispatch eta ===')
+    dispatch_eta = fit_dispatch_eta(T, feats)
+    if dispatch_eta['meta']['status'] == 'ok':
+        report(f"  cells: {len(dispatch_eta['cells']):,} | {dispatch_eta['meta']['method']}")
+    else:
+        report(f"  unavailable: {dispatch_eta['meta']['note']}")
+    dump_json('dispatch_eta.json', dispatch_eta)
 
     # --- ghosts.json ---
     ghosts = T['ghosts']
