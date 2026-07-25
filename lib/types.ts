@@ -180,11 +180,13 @@ export interface ArrivalDeserts {
 
 /** public/data/access_actions.json — "도착 이후 400m": 윌체어 무장애가게 12개 Y/N
  *  실사 × 두리발 하차를 겹쳐, 도착 이후 '들어갈 수 있는 선택지'와 사슬이 끊기는
- *  지점(Barrier DNA)을 본다. 현재 해운대구 송정동 표본(2026 DIVE 샘플).
+ *  지점(Barrier DNA)을 본다. 해운대구 전수(2026 DIVE 본선).
  *  좌표는 [lng, lat] (GeoJSON order). */
 export interface AccessShop {
   name: string;
   cat: string;   // 업종 중분류
+  /** 행정동명 — 본선 데이터부터 제공 (구 전수라 동별 분포가 의미를 가진다) */
+  dong?: string;
   lng: number;
   lat: number;
   /** 12 감사 항목 원자료: 일층·경사로·입구턱·입구무턱·테이블석·화장실턱·화장실무턱·
@@ -210,6 +212,38 @@ export interface AccessActions {
     usable: number;
     comfort: number;
     barrierDNA: Record<string, number>;
+    /** 동별 분포 — 구 전수 데이터부터 제공 (표본이 1개 동일 때는 없었다) */
+    dropoffsByDong?: Record<string, number>;
+    shopsByDong?: Record<string, number>;
+  };
+}
+
+/** public/data/haeundae_facilities.json — 해운대구 편의시설 실사 4종(본선 04~07).
+ *  A standalone artifact (docs/HAEUNDAE_DATA.md), not part of the citywide
+ *  pipeline contract: these are the per-facility coordinates that toilets_gu.json
+ *  (구 단위 집계) and elevators.json (역 단위) never had, so the 배차 예약 화면 can
+ *  finally show 장애인화장실·주차장·승강기 distances from a destination.
+ *  dong is decided by point-in-polygon; dongSrc keeps the original label when the
+ *  source sheet disagreed (36 rows). 좌표는 원좌표 (공개 시설). */
+export interface HaeundaeFacility {
+  type: "toilet" | "parking" | "charger" | "elevator";
+  name: string;
+  /** 한글 분류 표기 — 장애인 화장실 / 장애인 주차장 / 휠체어 충전소 / 장애인용 승강기 */
+  kind: string;
+  addr: string;
+  dong: string;
+  dongSrc?: string;
+  lng: number;
+  lat: number;
+}
+
+export interface HaeundaeFacilities {
+  meta: { source: string; note: string };
+  points: HaeundaeFacility[];
+  summary: {
+    total: number;
+    byType: Record<string, number>;
+    byDong: Record<string, Record<string, number>>;
   };
 }
 
@@ -304,6 +338,7 @@ export const DATA = {
   tourism: "/data/tourism.json",
   welfarePrograms: "/data/welfare_programs.json",
   disability: "/data/disability.json",
+  haeundaeFacilities: "/data/haeundae_facilities.json",
 } as const;
 
 /** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */

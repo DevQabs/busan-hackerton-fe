@@ -29,7 +29,18 @@ function DeckOverlay(props: MapboxOverlayProps) {
   return null;
 }
 
-export function MapCanvas({ spec }: { spec: MapSpec }) {
+/** `cursor` lets a scene signal "you are over something clickable". deck.gl
+ *  cannot do this itself here: the non-interleaved overlay canvas is
+ *  pointer-events:none, so any cursor it sets is never hit-tested — the cursor
+ *  comes from the maplibre canvas underneath. Optional and additive: every
+ *  existing scene keeps working without it. */
+export function MapCanvas({
+  spec,
+  cursor,
+}: {
+  spec: MapSpec;
+  cursor?: string;
+}) {
   // If the CARTO basemap cannot load (offline demo), fall back to a bare
   // DeckGL canvas on the dark background — all data layers keep working.
   const [basemapOk, setBasemapOk] = useState(true);
@@ -64,6 +75,7 @@ export function MapCanvas({ spec }: { spec: MapSpec }) {
           controller={true}
           layers={spec.layers}
           getTooltip={spec.getTooltip}
+          getCursor={cursor ? () => cursor : undefined}
         />
         <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-panel/80 px-2 py-1 text-[10px] text-dim">
           베이스맵 오프라인 — 데이터 레이어만 표시 중
@@ -78,6 +90,7 @@ export function MapCanvas({ spec }: { spec: MapSpec }) {
       initialViewState={INITIAL_VIEW}
       mapStyle={BASEMAP_STYLE}
       style={{ position: "absolute", inset: 0, background: "var(--bg)" }}
+      cursor={cursor}
       onLoad={() => {
         styleLoadedRef.current = true;
       }}
