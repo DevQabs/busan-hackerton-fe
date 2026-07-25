@@ -30,6 +30,8 @@ export function OverviewScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }
         id: "overview-dongs",
         data: dongs.data as never,
         pickable: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 72],
         stroked: true,
         filled: true,
         getFillColor: (f) => {

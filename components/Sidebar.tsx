@@ -1,13 +1,13 @@
 "use client";
 
-import { SCENES, type SceneId } from "@/lib/scenes";
+import { PAGES, type PageId } from "@/lib/scenes";
 
 export function Sidebar({
-  scene,
+  page,
   onSelect,
 }: {
-  scene: SceneId;
-  onSelect: (id: SceneId) => void;
+  page: PageId;
+  onSelect: (id: PageId) => void;
 }) {
   return (
     <nav className="flex w-60 shrink-0 flex-col border-r border-line bg-panel">
@@ -21,13 +21,13 @@ export function Sidebar({
       </div>
 
       <ol className="flex-1 overflow-y-auto px-2 py-2">
-        {SCENES.map((s, i) => {
-          const active = s.id === scene;
+        {PAGES.map((item, i) => {
+          const active = item.id === page;
           return (
-            <li key={s.id}>
+            <li key={item.id}>
               <button
                 type="button"
-                onClick={() => onSelect(s.id)}
+                onClick={() => onSelect(item.id)}
                 aria-current={active ? "page" : undefined}
                 className={`group mb-0.5 flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
                   active ? "bg-[#1a2336]" : "hover:bg-[#161e30]"
@@ -48,10 +48,10 @@ export function Sidebar({
                       active ? "text-ink" : "text-ink/80"
                     }`}
                   >
-                    {s.label}
+                    {item.label}
                   </span>
                   <span className="block truncate text-[11px] leading-4 text-dim">
-                    {s.caption}
+                    {item.caption}
                   </span>
                 </span>
               </button>

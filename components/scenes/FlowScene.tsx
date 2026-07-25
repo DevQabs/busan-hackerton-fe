@@ -1,12 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GeoJsonLayer, ScatterplotLayer, TripsLayer } from "deck.gl";
+import { GeoJsonLayer, ScatterplotLayer, TextLayer, TripsLayer } from "deck.gl";
 import { DATA, type AnimTrip, type DongProps, type GhostPoint } from "@/lib/types";
 import { useData } from "@/lib/useData";
 import { fmt, hhmm } from "@/lib/format";
-import { HEX, RGB_ACCENT, RGB_DEMAND, RGB_GRAY, RGB_UNMET } from "@/lib/palette";
-import { type DongCollection, type MapSpec } from "@/lib/mapspec";
+import {
+  HEX,
+  RGB_ACCENT,
+  RGB_DEMAND,
+  RGB_GRAY,
+  RGB_INFRA,
+  RGB_TOURISM,
+  RGB_UNMET,
+} from "@/lib/palette";
+import {
+  tooltipHtml,
+  type DongCollection,
+  type MapSpec,
+} from "@/lib/mapspec";
 import { Section } from "@/components/ui/Section";
 import { DataPending } from "@/components/ui/DataPending";
 import { Explainer } from "@/components/ui/Explainer";
@@ -15,6 +27,7 @@ const DAY = 86400;
 const TRAIL = 180; // seconds of trail behind each moving dot
 const SPEEDS = [30, 120, 300] as const;
 const GHOST_FADE = 20 * 60; // ghost dot fades out over ~20 simulated minutes
+const ENDPOINT_FADE = 8 * 60;
 
 export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const trips = useData<AnimTrip[]>(DATA.tripsAnim);
@@ -25,6 +38,7 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const [speed, setSpeed] = useState<number>(120);
   const [time, setTime] = useState(7 * 3600); // start the story at 07:00
   const [showGhosts, setShowGhosts] = useState(true);
+  const [showEndpoints, setShowEndpoints] = useState(true);
 
   // rAF clock: advance simulated seconds-of-day by wall-dt × speed.
   const lastRef = useRef<number | null>(null);
@@ -81,6 +95,9 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
         new GeoJsonLayer<DongProps>({
           id: "flow-dongs",
           data: dongs.data as never,
+          pickable: true,
+          autoHighlight: true,
+          highlightColor: [255, 255, 255, 72],
           stroked: true,
           filled: false,
           getLineColor: [35, 43, 61, 160],
@@ -105,6 +122,42 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
           jointRounded: true,
           fadeTrail: true,
           opacity: 0.85,
+        }),
+      );
+    }
+    if (showEndpoints && trips.data) {
+      const age = (eventTime: number) => (time - eventTime + DAY) % DAY;
+      const departures = trips.data.filter(
+        (trip) => age(trip.t[0]) <= ENDPOINT_FADE,
+      );
+      const arrivals = trips.data.filter(
+        (trip) => age(trip.t[1]) <= ENDPOINT_FADE,
+      );
+      out.push(
+        new ScatterplotLayer<AnimTrip>({
+          id: "flow-departures",
+          data: departures,
+          getPosition: (trip) => trip.p[0],
+          getRadius: 55,
+          radiusUnits: "meters",
+          radiusMinPixels: 3,
+          radiusMaxPixels: 8,
+          getFillColor: [...RGB_INFRA, 210],
+          getLineColor: [226, 232, 240, 230],
+          getLineWidth: 1,
+          lineWidthUnits: "pixels",
+          stroked: true,
+        }),
+        new TextLayer<AnimTrip>({
+          id: "flow-arrivals",
+          data: arrivals,
+          getPosition: (trip) => trip.p[1],
+          getText: () => "◆",
+          getColor: [...RGB_TOURISM, 230],
+          getSize: 15,
+          sizeUnits: "pixels",
+          getTextAnchor: "middle",
+          getAlignmentBaseline: "center",
         }),
       );
     }
@@ -134,11 +187,23 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
       );
     }
     return out;
-  }, [trips.data, dongs.data, ghosts.data, showGhosts, time]);
+  }, [trips.data, dongs.data, ghosts.data, showEndpoints, showGhosts, time]);
+
+  const getTooltip = useMemo<MapSpec["getTooltip"]>(() => {
+    return (info) => {
+      if (info.layer?.id !== "flow-dongs") return null;
+      const feature = info.object as { properties?: DongProps } | undefined;
+      const properties = feature?.properties;
+      if (!properties) return null;
+      return tooltipHtml(
+        `<b>${properties.gu} ${properties.name}</b><br/>승차 ${fmt(properties.pickups)}건 · 하차 ${fmt(properties.dropoffs)}건`,
+      );
+    };
+  }, []);
 
   useEffect(() => {
-    onMapSpec({ layers });
-  }, [layers, onMapSpec]);
+    onMapSpec({ layers, getTooltip });
+  }, [getTooltip, layers, onMapSpec]);
 
   return (
     <div className="space-y-3">
@@ -196,6 +261,34 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
             {fmt(ghostTotals.cancelled)}건
           </div>
         )}
+      </Section>
+
+      <Section title="출발·도착 지점">
+        <label className="flex cursor-pointer items-center justify-between text-[12px] text-ink">
+          최근 8분 출발·도착 표시
+          <input
+            type="checkbox"
+            checked={showEndpoints}
+            onChange={(event) => setShowEndpoints(event.target.checked)}
+            className="h-4 w-4 accent-[var(--accent)]"
+          />
+        </label>
+        <ul className="mt-2 space-y-1.5 text-[12px]">
+          <li className="flex items-center gap-2">
+            <span
+              className="h-2.5 w-2.5 rounded-full border border-white/80"
+              style={{ background: HEX.infra }}
+            />
+            <span className="text-ink">출발 — 승차 지점</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <span
+              className="h-3 w-3 rotate-45 border border-white/80"
+              style={{ background: HEX.tourism }}
+            />
+            <span className="text-ink">도착 — 하차 지점</span>
+          </li>
+        </ul>
       </Section>
 
       <Section title="보이지 않는 승객">
