@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GeoJsonLayer, ScatterplotLayer, TextLayer, TripsLayer } from "deck.gl";
-import { DATA, type AnimTrip, type DongProps, type GhostPoint } from "@/lib/types";
+import {
+  DATA,
+  type AnimTrip,
+  type DongProps,
+  type GhostPoint,
+  type Stats,
+} from "@/lib/types";
 import { useData } from "@/lib/useData";
 import { fmt, hhmm } from "@/lib/format";
 import {
@@ -40,6 +46,88 @@ function straightKm(p: AnimTrip["p"]): number {
   return Math.hypot(dx, dy);
 }
 
+
+/** 24시간 접수량 막대 — 시계와 함께 움직이고, 눌러서 그 시각으로 이동한다.
+ *  값은 stats.json(5월 전역 전수)이라 애니메이션 표본 12,000건과 축이 다르다:
+ *  막대는 "그 시각에 얼마나 몰리나", 지도는 "그 순간 누가 움직이나". */
+function HourStrip({
+  hourly,
+  time,
+  onSeek,
+}: {
+  hourly: Stats["hourly"];
+  time: number;
+  onSeek: (sec: number) => void;
+}) {
+  const max = Math.max(1, ...hourly.map((h) => h.requests));
+  const nowHour = Math.floor(time / 3600);
+  const seek = (event: React.PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(
+      0.9999,
+      Math.max(0, (event.clientX - box.left) / box.width),
+    );
+    onSeek(Math.floor(ratio * DAY));
+  };
+  return (
+    <div className="mt-2">
+      <div
+        className="relative h-16 cursor-pointer select-none"
+        onPointerDown={seek}
+        onPointerMove={(e) => {
+          if (e.buttons === 1) seek(e);
+        }}
+        role="slider"
+        aria-label="시각 이동"
+        aria-valuemin={0}
+        aria-valuemax={DAY - 1}
+        aria-valuenow={Math.floor(time)}
+        tabIndex={0}
+      >
+        <div className="flex h-full items-end gap-[2px]">
+          {hourly.map((h) => {
+            const failed = h.unassigned + h.cancelled;
+            const now = h.hour === nowHour;
+            return (
+              <div
+                key={h.hour}
+                className="flex flex-1 flex-col justify-end"
+                style={{ height: `${(h.requests / max) * 100}%` }}
+                title={`${h.hour}시 · 접수 ${fmt(h.requests)}건 · 못 탄 ${fmt(failed)}건`}
+              >
+                <div
+                  className="w-full rounded-t-[2px]"
+                  style={{
+                    height: `${(failed / h.requests) * 100}%`,
+                    background: now ? HEX.unmet : `${HEX.unmet}88`,
+                  }}
+                />
+                <div
+                  className="w-full"
+                  style={{
+                    flex: 1,
+                    background: now ? HEX.accent : "#22d3ee44",
+                  }}
+                />
+              </div>
+            );
+          })}
+        </div>
+        {/* 재생 헤드 — 분 단위로 부드럽게 움직인다 */}
+        <div
+          className="pointer-events-none absolute inset-y-0 w-px bg-white/85"
+          style={{ left: `${(time / DAY) * 100}%` }}
+        />
+      </div>
+      <div className="tnum mt-1 flex justify-between text-[9.5px] text-dim">
+        {[0, 6, 12, 18, 23].map((h) => (
+          <span key={h}>{h}시</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const raw = useData<AnimTrip[]>(DATA.tripsAnim);
   const trips = useMemo(() => {
@@ -58,6 +146,7 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   }, [raw]);
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
   const ghosts = useData<GhostPoint[]>(DATA.ghosts);
+  const stats = useData<Stats>(DATA.stats);
 
   const [playing, setPlaying] = useState(true);
   const [speed, setSpeed] = useState<number>(300);
@@ -246,16 +335,30 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
             운행 중 {fmt(activeCount)}건
           </div>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={DAY - 1}
-          step={60}
-          value={Math.floor(time)}
-          onChange={(e) => setTime(Number(e.target.value))}
-          className="mt-2 w-full"
-          aria-label="시각 이동"
-        />
+        {stats.data ? (
+          <HourStrip
+            hourly={stats.data.hourly}
+            time={time}
+            onSeek={setTime}
+          />
+        ) : (
+          <input
+            type="range"
+            min={0}
+            max={DAY - 1}
+            step={60}
+            value={Math.floor(time)}
+            onChange={(e) => setTime(Number(e.target.value))}
+            className="mt-2 w-full"
+            aria-label="시각 이동"
+          />
+        )}
+        {stats.data && (
+          <p className="mt-1 text-[10px] leading-4 text-dim">
+            막대 = 그 시각 접수 건수(5월 전역 전수) · 윗부분 붉은색 = 못 탄 건수
+            · 눌러서 그 시각으로 이동
+          </p>
+        )}
         <div className="mt-2 flex items-center gap-2">
           <button
             type="button"
