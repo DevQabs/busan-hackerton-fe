@@ -9,7 +9,7 @@ const BookingApp = dynamic(() => import("@/components/booking/BookingApp"), {
   ssr: false,
   loading: () => (
     <div className="flex h-screen items-center justify-center text-sm text-dim">
-      배차 예약 불러오는 중…
+      어디든 두가자 불러오는 중…
     </div>
   ),
 });

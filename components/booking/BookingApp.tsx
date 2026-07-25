@@ -314,6 +314,16 @@ export default function BookingApp() {
     speak(answer.text);
   };
 
+  /** 필드가 내보내는 짧은 문장을 소리로 흘린다 (안내 · 확정 복창 · 오류).
+   *
+   *  done을 받으면 다 말한 뒤에 부른다 — "말씀하세요"를 말하는 동안 마이크가 열려
+   *  있으면 자기 TTS를 되받아 오인식하기 때문이다. 음성 안내가 꺼져 있어도 done은
+   *  반드시 불러야 한다. 안 그러면 토글을 끈 순간 마이크가 영영 안 열린다. */
+  const announce = (text: string, done?: () => void) => {
+    if (voiceOn) speak(text, { onEnd: done });
+    else done?.();
+  };
+
   // ── 음성 모드 조작 ──────────────────────────────────────────────────────
 
   /** 단계 s(0=출발지 1=도착지 2=탑승 시각)의 음성 입력을 시작한다. */
@@ -505,9 +515,13 @@ export default function BookingApp() {
       <header className="sticky top-0 z-30 border-b border-line bg-bg/95 backdrop-blur">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-3.5 lg:py-3">
           <div className="min-w-0">
-            <h1 className="truncate text-[17px] font-semibold lg:text-[15px]">배차 예약</h1>
+            {/* 브랜드명은 대시보드·발표 자료와 같은 것을 쓴다 — 이 페이지만 '배차 예약'이면
+                심사위원에게는 별개 서비스로 읽힌다. 기능 설명은 아래 줄로 내린다. */}
+            <h1 className="truncate text-[17px] font-semibold lg:text-[15px]">
+              어디든 두가자
+            </h1>
             <p className="truncate text-[12px] text-dim lg:text-[11px]">
-              예상 대기시간 · 목적지 무장애 시설
+              배차 예약 · 예상 대기시간 · 목적지 무장애 시설
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -583,6 +597,8 @@ export default function BookingApp() {
               onClear={() => setOrigin(null)}
               accentHex={ORIGIN_HEX}
               voiceRef={originVoice}
+              onAnnounce={announce}
+              showMic={voiceMode}
             />
             <PlaceInput
               label="도착지"
@@ -592,9 +608,17 @@ export default function BookingApp() {
               onClear={() => setDest(null)}
               accentHex={DEST_HEX}
               voiceRef={destVoice}
+              onAnnounce={announce}
+              showMic={voiceMode}
             />
 
-            <TimeField hour={hour} onHour={pickHour} voiceRef={hourVoice} />
+            <TimeField
+              hour={hour}
+              onHour={pickHour}
+              voiceRef={hourVoice}
+              onAnnounce={announce}
+              showMic={voiceMode}
+            />
 
             <div>
               <span
@@ -872,12 +896,17 @@ function TimeField({
   hour,
   onHour,
   voiceRef,
+  onAnnounce,
+  showMic = false,
 }: {
   hour: number;
   /** source는 음성 모드의 단계 카운터를 위한 것이다 — 슬라이더로 바꾼 경우에는 단계가
    *  올라가면 안 된다. 눈으로 조작하는 사람은 그 카운터를 쓰지 않는다. */
   onHour: (h: number, source: "voice" | "slider") => void;
   voiceRef?: React.RefObject<VoiceHandle | null>;
+  onAnnounce?: (text: string, done?: () => void) => void;
+  /** 마이크는 음성 모드(`?voice=1`)에서만 노출한다. */
+  showMic?: boolean;
 }) {
   const id = useId();
   const statusId = `${id}-status`;
@@ -898,14 +927,33 @@ function TimeField({
     },
   });
 
+  // 안내를 다 말한 뒤에 마이크를 연다 — 동시에 열면 마이크가 자기 TTS를 되받는다.
+  const startWithPrompt = () => {
+    if (voice.listening) {
+      voice.toggle();
+      return;
+    }
+    if (onAnnounce) onAnnounce("탑승 시각, 말씀하세요.", voice.toggle);
+    else voice.toggle();
+  };
+
   // 음성 모드의 화면 탭이 이 필드의 인식을 시작하기 위한 손잡이.
   useEffect(() => {
     if (!voiceRef) return;
-    voiceRef.current = { start: voice.toggle };
+    voiceRef.current = { start: startWithPrompt };
     return () => {
       voiceRef.current = null;
     };
-  }, [voiceRef, voice.toggle]);
+  });
+
+  // 확정 복창과 오류만 소리로. 안내는 startWithPrompt가 이미 말했다.
+  const announcedRef = useRef("");
+  useEffect(() => {
+    const line = voice.error ? voice.error : picked;
+    if (!line || line === announcedRef.current) return;
+    announcedRef.current = line;
+    onAnnounce?.(line);
+  }, [voice.error, picked, onAnnounce]);
 
   const status = voice.listening
     ? "탑승 시각, 말씀하세요."
@@ -936,12 +984,14 @@ function TimeField({
           // 폰에서 높이를 옆 마이크 버튼(44px)에 맞춘다.
           className="h-11 w-full lg:h-auto"
         />
-        <MicButton
-          label="탑승 시각 음성으로 입력"
-          listening={voice.listening}
-          supported={voice.supported}
-          onToggle={voice.toggle}
-        />
+        {showMic && (
+          <MicButton
+            label="탑승 시각 음성으로 입력"
+            listening={voice.listening}
+            supported={voice.supported}
+            onToggle={startWithPrompt}
+          />
+        )}
       </div>
       <p
         id={statusId}

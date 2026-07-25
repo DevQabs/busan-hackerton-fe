@@ -35,6 +35,8 @@ export function PlaceInput({
   onClear,
   accentHex,
   voiceRef,
+  onAnnounce,
+  showMic = false,
 }: {
   label: string;
   placeholder: string;
@@ -43,6 +45,11 @@ export function PlaceInput({
   onClear: () => void;
   accentHex: string;
   voiceRef?: React.RefObject<VoiceHandle | null>;
+  /** 마이크는 음성 모드(`?voice=1`)에서만 노출한다. 일반 모드는 타이핑 검색만 쓴다. */
+  showMic?: boolean;
+  /** 이 문장을 소리로 내보낸다. done을 주면 다 말한 뒤에 부른다.
+   *  음성 안내가 꺼져 있거나 낭독이 불가능한 기기에서도 done은 반드시 불린다. */
+  onAnnounce?: (text: string, done?: () => void) => void;
 }) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<KakaoPlace[]>([]);
@@ -64,15 +71,39 @@ export function PlaceInput({
 
   const voice = useVoiceInput({ onResult: (t) => void runVoiceSearch(t) });
 
+  /** "출발지, 말씀하세요"를 먼저 말하고, 그 말이 끝난 뒤에 마이크를 연다.
+   *
+   *  순서가 핵심이다. 안내와 동시에 마이크를 열면 마이크가 자기 TTS를 그대로 되받아
+   *  "출발지 말씀하세요"를 장소 이름으로 인식한다. 무대에서 한 번 나면 복구가 어렵다. */
+  const startWithPrompt = () => {
+    if (voice.listening) {
+      voice.toggle();
+      return;
+    }
+    if (onAnnounce) onAnnounce(`${label}, 말씀하세요.`, voice.toggle);
+    else voice.toggle();
+  };
+
   // 값이 이미 들어와 마이크 버튼이 화면에서 사라진 뒤에도 손잡이는 살아 있어야 한다 —
   // 길게 누르기로 "직전 단계 다시 말하기"를 하면 확정된 필드를 덮어써야 하기 때문이다.
   useEffect(() => {
     if (!voiceRef) return;
-    voiceRef.current = { start: voice.toggle };
+    voiceRef.current = { start: startWithPrompt };
     return () => {
       voiceRef.current = null;
     };
-  }, [voiceRef, voice.toggle]);
+  });
+
+  // 확정 복창과 오류만 소리로 내보낸다. "검색 중"은 화면에만 남는다 — 카카오 검색이
+  // 300~600ms라 그 문장을 말하는 동안 결과가 도착해 복창과 겹친다.
+  // 안내("말씀하세요")는 startWithPrompt가 이미 말했으므로 여기서 제외한다.
+  const announcedRef = useRef("");
+  useEffect(() => {
+    const line = voice.error ? voice.error : value ? `${label}, ${value.name}` : "";
+    if (!line || line === announcedRef.current) return;
+    announcedRef.current = line;
+    onAnnounce?.(line);
+  }, [voice.error, value, label, onAnnounce]);
 
   useEffect(() => {
     const q = query.trim();
@@ -262,12 +293,14 @@ export function PlaceInput({
               </span>
             )}
           </div>
-          <MicButton
-            label={`${label} 음성으로 입력`}
-            listening={voice.listening}
-            supported={voice.supported}
-            onToggle={voice.toggle}
-          />
+          {showMic && (
+            <MicButton
+              label={`${label} 음성으로 입력`}
+              listening={voice.listening}
+              supported={voice.supported}
+              onToggle={startWithPrompt}
+            />
+          )}
         </div>
       )}
 

@@ -182,9 +182,18 @@ export function primeSpeech(): void {
   if (primed || !speechOutputSupported()) return;
   primed = true;
   try {
-    const u = new SpeechSynthesisUtterance(" ");
+    const synth = window.speechSynthesis;
+    // 안드로이드에서는 합성기가 paused 상태로 남아 있는 경우가 있다 — 먼저 깨운다.
+    synth.resume();
+    // 목소리 목록은 비동기로 채워진다. 여기서 한 번 건드려두면 실제 낭독 시점에
+    // 한국어 목소리를 고를 수 있다.
+    synth.getVoices();
+    // 공백 한 칸(" ")으로는 잠금이 풀리지 않는다 — 일부 안드로이드 빌드가 내용 없는
+    // 발화를 그냥 버리기 때문이다. 실제 문장을 볼륨 0으로 흘려보내야 열린다.
+    const u = new SpeechSynthesisUtterance("음성 안내를 준비합니다");
+    u.lang = "ko-KR";
     u.volume = 0;
-    window.speechSynthesis.speak(u);
+    synth.speak(u);
   } catch {
     /* 발화 준비는 실패해도 흐름을 막지 않는다 */
   }
@@ -201,16 +210,50 @@ function koreanVoice(): SpeechSynthesisVoice | null {
 
 /** 낭독. 앞선 발화는 취소한다 — 입력이 바뀌면 옛 답을 끝까지 읽을 이유가 없다.
  *  rate 기본값을 1보다 올린 것은 1분 시연 제약 때문이다. */
-export function speak(text: string, rate = 1.15): void {
-  if (!speechOutputSupported() || !text) return;
+export function speak(
+  text: string,
+  { rate = 1.15, onEnd }: { rate?: number; onEnd?: () => void } = {},
+): void {
+  // onEnd는 "말한 뒤에 마이크를 연다"를 위한 것이다. 그래서 낭독이 불가능한 경우에도
+  // 반드시 한 번은 불려야 한다 — 안 그러면 소리가 안 나는 기기에서 마이크가 영영
+  // 안 열린다. 아래 done()이 그 보증이다.
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    onEnd?.();
+  };
+
+  if (!speechOutputSupported() || !text) {
+    done();
+    return;
+  }
   const synth = window.speechSynthesis;
-  synth.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "ko-KR";
-  u.rate = rate;
-  const v = koreanVoice();
-  if (v) u.voice = v;
-  synth.speak(u);
+
+  const utter = () => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ko-KR";
+    u.rate = rate;
+    const v = koreanVoice();
+    if (v) u.voice = v;
+    u.onend = done;
+    u.onerror = done;
+    // 안드로이드에서 onend가 끝내 안 오는 경우가 있다. 글자 수로 상한을 잡아 풀어준다.
+    if (onEnd) window.setTimeout(done, 1200 + text.length * 90);
+    // 화면이 꺼졌다 켜지거나 탭이 백그라운드에 다녀오면 안드로이드 Chrome의 합성기가
+    // paused 로 남는다. 그 상태에서 speak()하면 아무 일도 일어나지 않고 오류도 없다.
+    synth.resume();
+    synth.speak(u);
+  };
+
+  if (synth.speaking || synth.pending) {
+    // cancel() 직후 같은 틱에서 speak()하면 안드로이드에서 새 발화까지 함께 삼켜진다.
+    // 취소가 반영될 한 틱을 주고 나서 말한다 — 데스크톱에서는 체감되지 않는 지연이다.
+    synth.cancel();
+    window.setTimeout(utter, 80);
+  } else {
+    utter();
+  }
 }
 
 export function stopSpeaking(): void {
