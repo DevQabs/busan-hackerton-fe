@@ -41,7 +41,9 @@ export function PlaceInput({
   label: string;
   placeholder: string;
   value: KakaoPlace | null;
-  onPick: (p: KakaoPlace) => void;
+  /** source는 확정 복창을 누가 말할지 가른다 — 음성으로 들어온 경우에만 부모가
+   *  "다음은 도착지입니다" 같은 다음 단계 안내까지 붙여서 낭독한다. */
+  onPick: (p: KakaoPlace, source: "voice" | "manual") => void;
   onClear: () => void;
   accentHex: string;
   voiceRef?: React.RefObject<VoiceHandle | null>;
@@ -69,41 +71,42 @@ export function PlaceInput({
   const statusId = `place-status-${uid}`;
   const listId = `place-list-${uid}`;
 
-  const voice = useVoiceInput({ onResult: (t) => void runVoiceSearch(t) });
-
-  /** "출발지, 말씀하세요"를 먼저 말하고, 그 말이 끝난 뒤에 마이크를 연다.
-   *
-   *  순서가 핵심이다. 안내와 동시에 마이크를 열면 마이크가 자기 TTS를 그대로 되받아
-   *  "출발지 말씀하세요"를 장소 이름으로 인식한다. 무대에서 한 번 나면 복구가 어렵다. */
-  const startWithPrompt = () => {
-    if (voice.listening) {
-      voice.toggle();
-      return;
-    }
-    if (onAnnounce) onAnnounce(`${label}, 말씀하세요.`, voice.toggle);
-    else voice.toggle();
-  };
+  // 안내 → (다 말한 뒤) 마이크 열기 → 3초 무음이면 다시 청하기, 3회째엔 멈추기.
+  // 이 순서와 재시도 정책은 훅이 들고 있다.
+  const voice = useVoiceInput({
+    onResult: (t) => void runVoiceSearch(t),
+    prompt: `${label}, 말씀하세요.`,
+    announce: onAnnounce,
+  });
 
   // 값이 이미 들어와 마이크 버튼이 화면에서 사라진 뒤에도 손잡이는 살아 있어야 한다 —
   // 길게 누르기로 "직전 단계 다시 말하기"를 하면 확정된 필드를 덮어써야 하기 때문이다.
   useEffect(() => {
     if (!voiceRef) return;
-    voiceRef.current = { start: startWithPrompt };
+    voiceRef.current = { start: voice.toggle };
     return () => {
       voiceRef.current = null;
     };
   });
 
-  // 확정 복창과 오류만 소리로 내보낸다. "검색 중"은 화면에만 남는다 — 카카오 검색이
-  // 300~600ms라 그 문장을 말하는 동안 결과가 도착해 복창과 겹친다.
-  // 안내("말씀하세요")는 startWithPrompt가 이미 말했으므로 여기서 제외한다.
+  // 오류만 여기서 소리로 낸다.
+  //
+  //  · 안내("말씀하세요")는 startWithPrompt가 이미 말했다.
+  //  · "검색 중"은 화면에만 남는다 — 카카오 검색이 300~600ms라 그 문장을 말하는 동안
+  //    결과가 도착해 복창과 겹친다.
+  //  · 확정 복창은 부모(BookingApp)가 말한다. "다음은 도착지" 같은 다음 단계 안내를
+  //    붙이려면 단계 카운터를 아는 쪽이어야 하기 때문이다.
   const announcedRef = useRef("");
   useEffect(() => {
-    const line = voice.error ? voice.error : value ? `${label}, ${value.name}` : "";
-    if (!line || line === announcedRef.current) return;
-    announcedRef.current = line;
-    onAnnounce?.(line);
-  }, [voice.error, value, label, onAnnounce]);
+    // 마이크를 다시 열면 같은 오류를 또 말할 수 있어야 한다 — 3초 무음이 두 번 연속
+    // 나는 것은 흔하고, 두 번째에 침묵하면 고장으로 보인다.
+    if (voice.listening) announcedRef.current = "";
+  }, [voice.listening]);
+  useEffect(() => {
+    if (!voice.error || voice.error === announcedRef.current) return;
+    announcedRef.current = voice.error;
+    onAnnounce?.(voice.error);
+  }, [voice.error, onAnnounce]);
 
   useEffect(() => {
     const q = query.trim();
@@ -149,7 +152,7 @@ export function PlaceInput({
   }, [open]);
 
   const pick = (p: KakaoPlace) => {
-    onPick(p);
+    onPick(p, "manual");
     setQuery("");
     setHits([]);
     setOpen(false);
@@ -179,7 +182,7 @@ export function PlaceInput({
         return;
       }
       setHits(found);
-      onPick(found[0]);
+      onPick(found[0], "voice");
       setQuery("");
       setOpen(false);
     } catch (e) {
@@ -298,7 +301,7 @@ export function PlaceInput({
               label={`${label} 음성으로 입력`}
               listening={voice.listening}
               supported={voice.supported}
-              onToggle={startWithPrompt}
+              onToggle={voice.toggle}
             />
           )}
         </div>

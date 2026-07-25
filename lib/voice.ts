@@ -18,7 +18,7 @@
 // TypeScript의 lib.dom.d.ts에는 SpeechRecognitionResult/ResultList만 있고
 // SpeechRecognition 생성자 선언이 없다 — 그래서 필요한 만큼만 직접 타이핑한다.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 // ── SpeechRecognition ──────────────────────────────────────────────────────
 
@@ -52,6 +52,25 @@ export function voiceInputSupported(): boolean {
   return recognitionCtor() !== null;
 }
 
+/** 마이크를 열어두고 이 시간 동안 아무 말도 안 들리면 포기하고 다시 청한다.
+ *
+ *  인식기 자체의 `no-speech`에 맡길 수 없다. 발화 시점을 언제로 볼지가 플랫폼마다
+ *  다르고, 안드로이드에서는 마이크가 열린 채 한참을 기다리다 아예 오지 않기도 한다.
+ *  무대에서 "지금 듣고 있는 건가"를 궁금해하는 침묵은 3초면 이미 길다. */
+const SILENCE_MS = 3000;
+
+/** 무음을 몇 번까지 "다시 말해 주세요"로 넘길지. 이 횟수째에 포기한다. */
+const SILENCE_LIMIT = 3;
+
+/** 1·2회 무음 — 아직 실패가 아니다. 다시 청하고 마이크를 다시 연다. */
+const SILENCE_RETRY = "잘 못 들었습니다. 다시 말씀해 주세요.";
+
+/** 3회째 무음 — 여기서 멈춘다.
+ *
+ *  "오류"라는 말은 쓰지 않는다. 화면을 보지 않는 사람에게 오류는 정보가 아니라
+ *  막다른 길이다. 지금 무엇을 하면 되는지만 말한다. */
+const SILENCE_GIVEUP = "소리가 들리지 않았습니다. 새로고침 후 다시 말씀해 주세요.";
+
 /** 인식 실패 사유를 사용자가 뭘 해야 하는지로 번역한다.
  *  null을 돌려주면 알리지 않는다 — 사용자가 직접 중지한 경우까지 오류로 읽으면
  *  스크린리더가 쓸데없이 말을 얹는다. */
@@ -60,16 +79,17 @@ function recognitionErrorText(code: string): string | null {
     case "aborted":
       return null;
     case "no-speech":
-      return "소리가 들리지 않았습니다. 마이크 버튼을 다시 누르고 말씀해 주세요.";
+      // 무음은 여기서 다루지 않는다 — 재시도 횟수를 세는 쪽(handleSilence)이 맡는다.
+      return null;
     case "not-allowed":
     case "service-not-allowed":
       return "마이크 권한이 없습니다. 주소창의 자물쇠 아이콘에서 마이크를 허용해 주세요.";
     case "audio-capture":
       return "마이크를 찾을 수 없습니다.";
     case "network":
-      return "네트워크 오류로 음성 인식에 실패했습니다.";
+      return "인식 서버에 연결하지 못했습니다. 새로고침 후 다시 말씀해 주세요.";
     default:
-      return "음성 인식에 실패했습니다. 다시 시도해 주세요.";
+      return "음성을 인식하지 못했습니다. 새로고침 후 다시 말씀해 주세요.";
   }
 }
 
@@ -92,34 +112,60 @@ export interface VoiceInput {
 export function useVoiceInput({
   onResult,
   lang = "ko-KR",
+  prompt,
+  announce,
 }: {
   onResult: (transcript: string) => void;
   lang?: string;
+  /** 마이크를 열기 직전에 말할 안내. 예: "출발지, 말씀하세요."
+   *
+   *  안내를 말하는 동안 마이크가 열려 있으면 마이크가 자기 TTS를 되받아 안내 문구를
+   *  입력으로 인식한다. 그래서 안내가 끝난 뒤에 연다 — 이 순서를 훅이 보장한다. */
+  prompt?: string;
+  /** 문장을 소리로 내보낸다. done을 주면 다 말한 뒤에 부른다.
+   *  낭독이 불가능한 기기에서도 done은 반드시 불려야 마이크가 열린다. */
+  announce?: (text: string, done?: () => void) => void;
 }): VoiceInput {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const recRef = useRef<RecognitionLike | null>(null);
-  // onResult는 렌더마다 새 함수일 수 있다 — 인식 객체를 다시 만들지 않도록 ref로 읽는다.
+  /** 무음 감시 타이머. 열려 있는 동안만 살아 있다. */
+  const silenceRef = useRef<number | null>(null);
+  /** 이번 시도에서 무음 처리를 이미 했는가. 네이티브 no-speech와 우리 타이머가
+   *  동시에 터지는 경우를 한 번으로 접는다. */
+  const handledRef = useRef(false);
+  /** 사용자가 직접 시작한 뒤로 몇 번 무음이었나. 결과가 들어오면 0으로 돌아간다. */
+  const attemptRef = useRef(0);
+
+  // 렌더마다 새 함수/문자열일 수 있다 — 인식 콜백이 옛 값을 붙잡지 않게 ref로 읽는다.
   const cbRef = useRef(onResult);
   cbRef.current = onResult;
+  const announceRef = useRef(announce);
+  announceRef.current = announce;
+  const promptRef = useRef(prompt);
+  promptRef.current = prompt;
+  /** 재시도에서 자기 자신을 다시 부르기 위한 손잡이 (순환 참조 회피). */
+  const beginRef = useRef<() => void>(() => {});
+
+  const clearSilence = () => {
+    if (silenceRef.current !== null) {
+      window.clearTimeout(silenceRef.current);
+      silenceRef.current = null;
+    }
+  };
 
   useEffect(() => {
     setSupported(voiceInputSupported());
     return () => {
+      clearSilence();
       recRef.current?.abort();
       recRef.current = null;
     };
   }, []);
 
-  const toggle = useCallback(() => {
-    if (recRef.current) {
-      recRef.current.abort();
-      recRef.current = null;
-      setListening(false);
-      return;
-    }
-
+  /** 마이크를 실제로 연다. 안내는 이미 끝난 상태라고 가정한다. */
+  const begin = () => {
     const Ctor = recognitionCtor();
     if (!Ctor) {
       setError("이 브라우저는 음성 입력을 지원하지 않습니다. Chrome을 사용해 주세요.");
@@ -137,21 +183,60 @@ export function useVoiceInput({
     rec.interimResults = false;
     rec.maxAlternatives = 1;
 
+    /** 아무 말도 안 들린 채 이번 시도가 끝났다.
+     *
+     *  1·2회는 실패가 아니다 — 다시 청하고 마이크를 다시 연다. 무대에서 한 번 못
+     *  알아들었다고 멈춰 서면 발표자는 무엇을 해야 할지 모른다. 대신 무한히 되열지는
+     *  않는다: 3회째에는 멈추고, 무엇을 하면 되는지(새로고침)만 말한다. */
+    const handleSilence = () => {
+      if (handledRef.current) return;
+      handledRef.current = true;
+      clearSilence();
+      attemptRef.current += 1;
+      recRef.current?.abort();
+
+      if (attemptRef.current >= SILENCE_LIMIT) {
+        setError(SILENCE_GIVEUP);
+        return;
+      }
+      const speakIt = announceRef.current;
+      if (speakIt) speakIt(SILENCE_RETRY, () => beginRef.current());
+      else beginRef.current();
+    };
+
     rec.onstart = () => {
       setError(null);
       setListening(true);
+      handledRef.current = false;
+      clearSilence();
+      silenceRef.current = window.setTimeout(handleSilence, SILENCE_MS);
     };
     rec.onresult = (e) => {
+      clearSilence();
+      handledRef.current = true;
       const transcript = e.results[0]?.[0]?.transcript?.trim() ?? "";
-      if (transcript) cbRef.current(transcript);
+      if (transcript) {
+        attemptRef.current = 0;
+        cbRef.current(transcript);
+      }
     };
     rec.onerror = (e) => {
+      // no-speech는 우리 타이머보다 먼저 올 수도, 아예 안 올 수도 있다. 어느 쪽이든
+      // 재시도 횟수를 세는 곳은 하나여야 한다.
+      if (e.error === "no-speech") {
+        handleSilence();
+        return;
+      }
       const text = recognitionErrorText(e.error);
       if (text) setError(text);
     };
     rec.onend = () => {
-      setListening(false);
-      recRef.current = null;
+      clearSilence();
+      // 재시도로 새 인식기가 이미 붙었을 수 있다 — 그때는 건드리지 않는다.
+      if (recRef.current === rec) {
+        recRef.current = null;
+        setListening(false);
+      }
     };
 
     recRef.current = rec;
@@ -162,7 +247,25 @@ export function useVoiceInput({
       recRef.current = null;
       setListening(false);
     }
-  }, [lang]);
+  };
+  beginRef.current = begin;
+
+  const toggle = () => {
+    if (recRef.current) {
+      clearSilence();
+      handledRef.current = true;
+      recRef.current.abort();
+      recRef.current = null;
+      setListening(false);
+      return;
+    }
+    // 사용자가 직접 시작한 순간부터 다시 센다.
+    attemptRef.current = 0;
+    const text = promptRef.current;
+    const speakIt = announceRef.current;
+    if (text && speakIt) speakIt(text, begin);
+    else begin();
+  };
 
   return { supported, listening, error, toggle };
 }

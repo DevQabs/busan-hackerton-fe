@@ -290,13 +290,14 @@ export default function BookingApp() {
     // 그대로 두면 30초 낭독이 시작됐다가 탑승 시각을 말하는 순간 끊기고 다시 시작한다.
     if (voiceMode && voiceStep < 3) return;
     if (answer.text === spokenRef.current) return;
-    // 1.2초 지연은 연속 입력을 삼키기 위한 것이다. 도착지를 말한 직후 탑승 시각을
-    // 말하면 답이 두 번 바뀌는데, 첫 답을 곧바로 읽기 시작하면 20초 낭독이
-    // 중간에 끊기고 다시 시작한다 — 1분 예산에서 가장 비싼 낭비다.
+    // 지연을 두는 이유는 두 가지다. 하나는 연속 입력을 삼키기 위해서고(답이 두 번
+    // 바뀌는 동안 30초 낭독을 시작했다 끊는 것이 가장 비싼 낭비다), 다른 하나는 직전에
+    // 나간 확정 복창("탑승 시각, 10시")이 끝날 시간을 주기 위해서다 — 겹치면 speak()가
+    // 복창을 잘라버린다.
     const t = window.setTimeout(() => {
       spokenRef.current = answer.text;
       speak(answer.text);
-    }, 1200);
+    }, 1800);
     return () => window.clearTimeout(t);
   }, [answer, voiceOn, voiceMode, voiceStep]);
 
@@ -351,13 +352,21 @@ export default function BookingApp() {
 
   /** 음성으로 값이 확정되면 단계가 하나 오른다. 슬라이더나 목록 클릭으로 바꾼 경우에는
    *  올리지 않는다 — 눈으로 조작하는 사람은 이 단계 카운터를 쓰지 않는다. */
-  const pickOrigin = (p: KakaoPlace) => {
+  //
+  //  확정 복창에 "다음에 무엇을 하라"를 붙이는 것이 여기 있는 이유다. 화면을 못 보는
+  //  사람에게 "출발지, 센텀삼익아파트"만 들려주고 끝내면 흐름이 거기서 멈춘다 —
+  //  다음이 무엇이고 무엇을 눌러야 하는지는 단계를 아는 이쪽만 말할 수 있다.
+  const pickOrigin = (p: KakaoPlace, source: "voice" | "manual") => {
     setOrigin(p);
+    if (source !== "voice") return;
     setVoiceStep((s) => (s === 0 ? 1 : s));
+    announce(`출발지, ${p.name}. 도착지 입력을 위해 터치해 주세요.`);
   };
-  const pickDest = (p: KakaoPlace) => {
+  const pickDest = (p: KakaoPlace, source: "voice" | "manual") => {
     setDest(p);
+    if (source !== "voice") return;
     setVoiceStep((s) => (s === 1 ? 2 : s));
+    announce(`도착지, ${p.name}. 탑승 시각 입력을 위해 터치해 주세요.`);
   };
   const pickHour = (h: number, source: "voice" | "slider") => {
     setHour(h);
@@ -925,22 +934,14 @@ function TimeField({
       // 발표자에겐 이미 아는 말이고 심사위원에겐 정보가 아니다.
       setPicked(`탑승 시각, ${h}시`);
     },
+    prompt: "탑승 시각, 말씀하세요.",
+    announce: onAnnounce,
   });
-
-  // 안내를 다 말한 뒤에 마이크를 연다 — 동시에 열면 마이크가 자기 TTS를 되받는다.
-  const startWithPrompt = () => {
-    if (voice.listening) {
-      voice.toggle();
-      return;
-    }
-    if (onAnnounce) onAnnounce("탑승 시각, 말씀하세요.", voice.toggle);
-    else voice.toggle();
-  };
 
   // 음성 모드의 화면 탭이 이 필드의 인식을 시작하기 위한 손잡이.
   useEffect(() => {
     if (!voiceRef) return;
-    voiceRef.current = { start: startWithPrompt };
+    voiceRef.current = { start: voice.toggle };
     return () => {
       voiceRef.current = null;
     };
@@ -948,6 +949,11 @@ function TimeField({
 
   // 확정 복창과 오류만 소리로. 안내는 startWithPrompt가 이미 말했다.
   const announcedRef = useRef("");
+  useEffect(() => {
+    // 마이크를 다시 열면 같은 오류를 또 말할 수 있어야 한다 — 3초 무음이 연속으로
+    // 나는 것은 흔하고, 두 번째에 침묵하면 고장으로 보인다.
+    if (voice.listening) announcedRef.current = "";
+  }, [voice.listening]);
   useEffect(() => {
     const line = voice.error ? voice.error : picked;
     if (!line || line === announcedRef.current) return;
@@ -989,7 +995,7 @@ function TimeField({
             label="탑승 시각 음성으로 입력"
             listening={voice.listening}
             supported={voice.supported}
-            onToggle={startWithPrompt}
+            onToggle={voice.toggle}
           />
         )}
       </div>
