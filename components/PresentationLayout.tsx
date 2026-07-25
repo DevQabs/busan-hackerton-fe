@@ -126,23 +126,32 @@ export function PresentationLayout({
 
       {/* 폰: 지도(고정 높이) 위 · 설명 아래로 쌓는다. 좌우로 두면 360px 사이드가
           폭을 다 먹어 지도 칸이 0으로 눌려 아무것도 보이지 않는다. */}
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex flex-col md:min-h-0 md:flex-1 md:flex-row">
         <section className="relative h-[46vh] min-h-[240px] w-full shrink-0 md:h-auto md:min-h-0 md:w-auto md:min-w-0 md:flex-1">
           {map}
+          {/* 폰에서는 지도 위에 얹지 않는다 — 46vh 지도를 컨트롤이 다 덮어 지도도
+              컨트롤도 못 쓴다. md: 이상에서만 오버레이로 띄운다. */}
           {toolbar && (
-            <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+            <div className="absolute left-3 top-3 z-10 hidden max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 md:flex">
               {toolbar}
             </div>
           )}
           {legend && (
-            <div className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+            <div className="absolute bottom-3 left-3 z-10 hidden max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 md:flex">
               {legend}
             </div>
           )}
         </section>
 
+        {(toolbar || legend) && (
+          <div className="flex w-full shrink-0 flex-col items-start gap-2 border-t border-line bg-bg px-3 py-2 md:hidden">
+            {toolbar}
+            {legend}
+          </div>
+        )}
+
         <aside
-          className={`flex w-full flex-col border-t border-line bg-bg p-3 md:shrink-0 md:overflow-y-auto md:border-l md:border-t-0 ${
+          className={`flex w-full shrink-0 flex-col border-t border-line bg-bg p-3 md:shrink-0 md:overflow-y-auto md:border-l md:border-t-0 ${
             sideWide ? "md:w-[40%] md:min-w-[380px]" : "md:w-[360px]"
           }`}
         >
@@ -293,7 +302,7 @@ export function ActionCard({
   cta?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="flex min-w-[260px] flex-col gap-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3.5 py-2.5">
+    <div className="flex flex-col gap-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3.5 py-2.5 md:min-w-[260px]">
       <div className="text-[10px] font-semibold leading-4 text-accent">
         {eyebrow}
       </div>

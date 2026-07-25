@@ -854,7 +854,7 @@ export function BlindspotsHaeundaeScene({
   const kpis: ReactNode =
     isMetric ? (
       cmp ? (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <KpiTile
             label={`${cmp.name} · 호출(도착 기준)`}
             value={`${fmt(cmp.calls)}건`}
@@ -899,7 +899,7 @@ export function BlindspotsHaeundaeScene({
           />
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <KpiTile
             label="호출이 가장 많은 곳"
             value={kpiTop ? kpiTop.calls.name : "—"}
@@ -943,7 +943,7 @@ export function BlindspotsHaeundaeScene({
         </div>
       )
     ) : mode === "deserts" ? (
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <KpiTile
           label="도착지 공백 격자 (해운대)"
           value={deserts.data ? `${fmt(hwCells.length)}곳` : "—"}
@@ -974,7 +974,7 @@ export function BlindspotsHaeundaeScene({
         />
       </div>
     ) : (
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
         <KpiTile
           label="실사 무장애가게"
           value={access.data ? `${fmt(shops.length)}곳` : "—"}
@@ -1459,7 +1459,7 @@ export function BlindspotsHaeundaeScene({
           해운대 18개 동 · 본선 2025.3~2026.3 · 도착 기준
         </span>
       </div>
-      <div className="mt-1.5 grid grid-cols-4 gap-2">
+      <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
           <div className="text-[9.5px] text-dim">불러도 못 탄다</div>
           <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
@@ -1553,7 +1553,7 @@ export function BlindspotsHaeundaeScene({
   const modeBottom: ReactNode =
     isMetric ? (
       cmp ? (
-        <div className="flex items-stretch gap-3">
+        <div className="flex flex-col items-stretch gap-3 md:flex-row">
           <SelectedBlock
             title={cmp.name}
             badge={{
@@ -1599,7 +1599,7 @@ export function BlindspotsHaeundaeScene({
         </div>
       ) : undefined
     ) : mode === "deserts" ? (
-      <div className="flex items-stretch gap-3">
+      <div className="flex flex-col items-stretch gap-3 md:flex-row">
         {cell ? (
           <SelectedBlock
             title={`${cell.dong ?? "행정동 미확인"} · ${cell.rank}위 격자`}
@@ -1681,7 +1681,7 @@ export function BlindspotsHaeundaeScene({
         })()}
       </div>
     ) : (
-      <div className="flex items-stretch gap-3">
+      <div className="flex flex-col items-stretch gap-3 md:flex-row">
         {shop && shopSt ? (
           <SelectedBlock
             title={shop.name}

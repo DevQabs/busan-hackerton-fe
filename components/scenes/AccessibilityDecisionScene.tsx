@@ -1099,7 +1099,7 @@ export function AccessibilityDecisionScene({
     selected && selected.gu.gu === "해운대구" && onDrilldown,
   );
   const kpis = (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
       <KpiTile
         label={selected ? `${selected.gu.gu} · 등록 장애인` : "등록 장애인"}
         value={`${fmt(selected ? selectedRegistered : cityRegistered)}명`}
@@ -1496,7 +1496,7 @@ export function AccessibilityDecisionScene({
     selected && selectedWorst && selectedAction ? (
       // 진단의 "왜"를 여기서 끝낸다 — 기대량의 근거, 양 축 전체 항목,
       // 거리 축의 실제 값. 사이드는 단계별 서술, 이 줄은 단계와 무관한 근거.
-      <div className="flex items-stretch gap-3">
+      <div className="flex flex-col items-stretch gap-3 md:flex-row">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span
@@ -1515,7 +1515,7 @@ export function AccessibilityDecisionScene({
               {BASIS_LABEL[basis]} 기준
             </span>
           </div>
-          <div className="mt-1.5 grid grid-cols-3 gap-2">
+          <div className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
               <div className="text-[9.5px] text-dim">필요 비중 · 기대량의 근거</div>
               <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
