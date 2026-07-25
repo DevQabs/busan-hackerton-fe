@@ -8,6 +8,7 @@ import { MapCanvas } from "@/components/MapCanvas";
 import { OverviewScene } from "@/components/scenes/OverviewScene";
 import { FlowScene } from "@/components/scenes/FlowScene";
 import { BlindspotsScene } from "@/components/scenes/BlindspotsScene";
+import { BlindspotsHaeundaeScene } from "@/components/scenes/BlindspotsHaeundaeScene";
 import { InfrastructureScene } from "@/components/scenes/InfrastructureScene";
 import { DispatchScene } from "@/components/scenes/DispatchScene";
 import { StatisticsScene } from "@/components/scenes/StatisticsScene";
@@ -19,6 +20,7 @@ import { DispatchEtaScene } from "@/components/scenes/DispatchEtaScene";
 const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
   "infrastructure",
   "blindspots",
+  "blindspots-hw",
   "dispatch-analysis",
   "statistics",
 ]);
@@ -58,6 +60,9 @@ export default function Dashboard() {
           )}
           {page === "blindspots" && (
             <BlindspotsScene onMapSpec={onMapSpec} map={map} />
+          )}
+          {page === "blindspots-hw" && (
+            <BlindspotsHaeundaeScene onMapSpec={onMapSpec} map={map} />
           )}
           {page === "dispatch-analysis" && (
             <DispatchScene onMapSpec={onMapSpec} map={map} />

@@ -8,7 +8,8 @@ export type PageId =
   | "blindspots"
   | "dispatch-analysis"
   | "statistics"
-  | "dispatchEta";
+  | "dispatchEta"
+  | "blindspots-hw";
 
 export interface PageDef {
   id: PageId;
@@ -51,5 +52,10 @@ export const PAGES: PageDef[] = [
     id: "dispatchEta",
     label: "배차 예측 지도",
     caption: "동×시간대 예상 배차 대기시간",
+  },
+  {
+    id: "blindspots-hw",
+    label: "동하버전 — 해운대 진단",
+    caption: "문제 진단 · 무엇을 비교할까 7칩",
   },
 ];
