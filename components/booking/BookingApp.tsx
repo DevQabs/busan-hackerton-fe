@@ -601,8 +601,9 @@ export default function BookingApp() {
           a sticky second column spanning all four rows. */}
       {/* main 랜드마크 — 스크린리더가 헤더를 건너뛰고 본문으로 바로 갈 수 있어야
           하고, 페이지 내용이 랜드마크 밖에 남아 있으면 자동 검사도 걸린다. */}
-      {/* 폰에서는 하단 탭(56px + 홈 인디케이터)이 위에 떠 있으므로 그만큼 더 비운다. */}
-      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4 md:pb-16 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-5">
+      {/* 폰에서는 하단 탭(56px + 홈 인디케이터)이 위에 떠 있으므로 그만큼 더 비운다.
+          경계는 lg — 큰 폰·태블릿 세로까지 모바일 레이아웃으로 본다. */}
+      <main className="mx-auto grid max-w-[1400px] grid-cols-1 gap-4 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:gap-5 lg:pb-16">
         <div className="space-y-4 lg:col-start-1 lg:row-start-1">
           <section
             aria-label="이동 정보 입력"

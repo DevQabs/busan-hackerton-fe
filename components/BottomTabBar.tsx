@@ -4,7 +4,7 @@ import { EXTERNAL_PAGES, PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
 
 // 폰 전용 내비 — 240px 사이드바를 세로로 세울 수 없어서 하단 탭으로 바꾼다.
 // 페이지가 정확히 4개라 한 줄에 들어가고, 엄지 도달 범위에 있다.
-// md: 이상에서는 숨고 Sidebar가 다시 나온다.
+// lg: 이상에서는 숨고 Sidebar가 다시 나온다.
 //
 // 두 곳에서 쓴다:
 //  - 대시보드(/[page]) — onSelect가 오면 클라이언트 라우팅 버튼으로 그린다.
@@ -50,7 +50,7 @@ export function BottomTabBar({
   return (
     <nav
       aria-label="페이지"
-      className={`border-t border-line bg-panel pb-[env(safe-area-inset-bottom)] md:hidden ${
+      className={`border-t border-line bg-panel pb-[env(safe-area-inset-bottom)] lg:hidden ${
         floating ? "fixed inset-x-0 bottom-0 z-40" : "shrink-0"
       }`}
     >

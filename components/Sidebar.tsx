@@ -20,7 +20,7 @@ export function Sidebar({
     // 폰에서는 숨고 BottomTabBar가 대신 선다 — 240px를 세로로 세울 방법이 없다.
     // sticky/h-screen은 배차 페이지처럼 문서 전체가 스크롤하는 화면에서 메뉴가
     // 위로 흘러가 버리지 않게 한다(대시보드는 부모가 이미 100dvh라 영향 없다).
-    <nav className="hidden w-60 shrink-0 flex-col border-r border-line bg-panel md:sticky md:top-0 md:flex md:h-[100dvh]">
+    <nav className="hidden w-60 shrink-0 flex-col border-r border-line bg-panel lg:sticky lg:top-0 lg:flex lg:h-[100dvh]">
       <div className="border-b border-line px-4 py-4">
         <div className="text-[15px] font-bold leading-5 text-ink">
           어디든 <span className="text-accent">두가자</span>

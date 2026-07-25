@@ -54,10 +54,10 @@ export function PresentationLayout({
   footnote?: ReactNode;
 }) {
   return (
-    // 폰: 페이지 전체가 세로로 스크롤한다(지도는 고정 높이 블록). md: 이상은 기존처럼
+    // 폰: 페이지 전체가 세로로 스크롤한다(지도는 고정 높이 블록). lg: 이상은 기존처럼
     // 화면을 꽉 채우고 각 칸이 내부에서만 스크롤한다.
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto md:overflow-hidden">
-      <header className="flex shrink-0 flex-col gap-2 border-b border-line bg-panel/60 px-4 py-3 md:flex-row md:items-start md:gap-4">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:overflow-hidden">
+      <header className="flex shrink-0 flex-col gap-2 border-b border-line bg-panel/60 px-4 py-3 lg:flex-row lg:items-start lg:gap-4">
         <div className="min-w-0">
           <h1 className="text-[17px] font-bold leading-6 text-ink">
             {question}
@@ -69,7 +69,7 @@ export function PresentationLayout({
 
         {steps && steps.length > 0 && (
           // 폰에서는 줄바꿈 대신 가로 스크롤 — 3단계가 세 줄이 되면 지도가 그만큼 밀린다.
-          <ol className="-mx-1 flex items-stretch gap-1.5 overflow-x-auto px-1 pb-0.5 md:ml-auto md:mx-0 md:shrink-0 md:overflow-visible md:px-0">
+          <ol className="-mx-1 flex items-stretch gap-1.5 overflow-x-auto px-1 pb-0.5 lg:ml-auto lg:mx-0 lg:shrink-0 lg:overflow-visible lg:px-0">
             {steps.map((step, i) => {
               const active = step.id === activeStep;
               return (
@@ -124,29 +124,29 @@ export function PresentationLayout({
 
       {/* 폰: 지도(고정 높이) 위 · 설명 아래로 쌓는다. 좌우로 두면 사이드가 폭을 다
           먹어 지도 칸이 0으로 눌려 아무것도 보이지 않는다. */}
-      <div className="flex flex-col md:min-h-0 md:flex-1 md:flex-row">
-        <section className="relative h-[46vh] min-h-[240px] w-full shrink-0 md:h-auto md:min-h-0 md:w-auto md:min-w-0 md:flex-1">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row">
+        <section className="relative h-[46vh] min-h-[240px] w-full shrink-0 lg:h-auto lg:min-h-0 lg:w-auto lg:min-w-0 lg:flex-1">
           {map}
           {/* 폰에서는 지도 위에 얹지 않는다 — 46vh 지도를 칩이 다 덮는다.
-              md: 이상에서만 오버레이. */}
+              lg: 이상에서만 오버레이. */}
           {toolbar && (
-            <div className="absolute left-3 top-3 z-10 hidden max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 md:flex">
+            <div className="absolute left-3 top-3 z-10 hidden max-w-[calc(100%-1.5rem)] flex-col items-start gap-2 lg:flex">
               {toolbar}
             </div>
           )}
         </section>
 
         {toolbar && (
-          <div className="flex w-full shrink-0 flex-col items-start gap-2 border-t border-line bg-bg px-3 py-2 md:hidden">
+          <div className="flex w-full shrink-0 flex-col items-start gap-2 border-t border-line bg-bg px-3 py-2 lg:hidden">
             {toolbar}
           </div>
         )}
 
         <aside
-          className={`flex w-full shrink-0 flex-col border-t border-line bg-bg p-3 md:shrink-0 md:overflow-y-auto md:border-l md:border-t-0 ${
+          className={`flex w-full shrink-0 flex-col border-t border-line bg-bg p-3 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0 ${
             sideWide
-              ? "md:w-[40%] md:min-w-[340px] md:max-w-[600px]"
-              : "md:w-[360px]"
+              ? "lg:w-[40%] lg:min-w-[340px] lg:max-w-[600px]"
+              : "lg:w-[360px]"
           }`}
         >
           {side}
@@ -272,7 +272,7 @@ export function ActionCard({
   cta?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3.5 py-2.5 md:min-w-[260px]">
+    <div className="flex flex-col gap-1 rounded-lg border border-accent/40 bg-accent/[0.06] px-3.5 py-2.5 lg:min-w-[260px]">
       <div className="text-[10px] font-semibold leading-4 text-accent">
         {eyebrow}
       </div>
