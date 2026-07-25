@@ -62,6 +62,22 @@ const CHAIR_WAIT: Record<Chair, number> = { none: 1, manual: 1.06, electric: 1.1
 const CHAIR_RISK: Record<Chair, number> = { none: 1, manual: 1.07, electric: 1.15 };
 const CHAIR_PRIORITY: Record<Chair, number> = { none: 0, manual: 6, electric: 12 };
 
+/** Keep area-level risk visually separate from the pink point layer.
+ *  Low risk starts as a cool slate-blue and rises to amber; pink is reserved
+ *  for actual unserved-request cells. */
+function dispatchRiskColor(rate: number): [number, number, number, number] {
+  const t = Math.min(1, Math.max(0, rate / 0.25));
+  const low = [30, 64, 92] as const;
+  const high = [251, 191, 36] as const;
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
+  return [
+    mix(low[0], high[0]),
+    mix(low[1], high[1]),
+    mix(low[2], high[2]),
+    Math.round(45 + t * 145),
+  ];
+}
+
 export function DispatchScene({
   onMapSpec,
   map,
@@ -232,8 +248,7 @@ export function DispatchScene({
           getFillColor: (f) => {
             const p = f.properties;
             const rate = p.unassigned / Math.max(1, p.pickups + p.unassigned);
-            const t = Math.min(1, rate / 0.25);
-            return [251, 113, 133, Math.round(12 + t * 170)];
+            return dispatchRiskColor(rate);
           },
           getLineColor: (f) => {
             const cd = f.properties.admCd;
@@ -279,6 +294,18 @@ export function DispatchScene({
 
     if (origin && destination) {
       out.push(
+        new ArcLayer<{ o: [number, number]; d: [number, number] }>({
+          id: "dispatch-route-outline",
+          data: [{ o: origin.centroid, d: destination.centroid }],
+          getSourcePosition: (d) => d.o,
+          getTargetPosition: (d) => d.d,
+          getSourceColor: [11, 15, 26, 235],
+          getTargetColor: [11, 15, 26, 235],
+          getWidth: 9,
+          widthUnits: "pixels",
+          getHeight: 0.35,
+          pickable: false,
+        }),
         new ArcLayer<{ o: [number, number]; d: [number, number] }>({
           id: "dispatch-route",
           data: [{ o: origin.centroid, d: destination.centroid }],
@@ -459,6 +486,40 @@ export function DispatchScene({
             초기화
           </Chip>
         )}
+      </MapToolbar>
+
+      <MapToolbar label="색상 안내">
+        <span className="flex items-center gap-1.5 text-[10.5px] text-ink">
+          <span
+            className="h-2.5 w-10 rounded-sm border border-white/10"
+            style={{
+              background:
+                "linear-gradient(90deg, rgb(30 64 92), rgb(251 191 36))",
+            }}
+          />
+          행정동 미배차 위험
+        </span>
+        <span className="flex items-center gap-1.5 text-[10.5px] text-ink">
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: HEX.unmet }}
+          />
+          미충족 요청
+        </span>
+        <span className="flex items-center gap-1.5 text-[10.5px] text-ink">
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: HEX.infra }}
+          />
+          출발
+        </span>
+        <span className="flex items-center gap-1.5 text-[10.5px] text-ink">
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: HEX.accent }}
+          />
+          도착
+        </span>
       </MapToolbar>
     </>
   );
