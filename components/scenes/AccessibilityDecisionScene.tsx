@@ -22,6 +22,7 @@ import {
   type TravelTimes,
 } from "@/lib/types";
 import { useData } from "@/lib/useData";
+import { useHeatmapSupported } from "@/lib/webgl";
 import { fmt } from "@/lib/format";
 import { HEX } from "@/lib/palette";
 import {
@@ -399,6 +400,7 @@ export function AccessibilityDecisionScene({
   const [overlay, setOverlay] = useState<Overlay>("none");
   const [selectedGu, setSelectedGu] = useState<string | null>(null);
   const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
+  const heatmapOk = useHeatmapSupported();
 
   useEffect(() => {
     if (
@@ -926,26 +928,43 @@ export function AccessibilityDecisionScene({
     }
 
     // 수요 겹쳐보기 — 공급 지도 위에 "사람이 실제로 어디로 가는가"를 얹는다.
+    // HeatmapLayer는 float 렌더타깃 위에서 KDE를 굽는다. 그걸 못 하는(혹은
+    // 셰이더 링크가 깨지는) 모바일 GPU에서는 반투명 산점도를 겹쳐 밀도를
+    // 표현한다 — 정확한 KDE는 아니지만 "어디가 몰리는가"는 그대로 읽힌다.
     if (overlay === "heat" && trips.data?.length) {
       out.push(
-        new HeatmapLayer<AnimTrip>({
-          id: "demand-heat",
-          data: trips.data,
-          getPosition: (trip) => trip.p[1],
-          getWeight: 1,
-          radiusPixels: 45,
-          intensity: 1,
-          threshold: 0.04,
-          colorRange: [
-            [56, 189, 248, 0],
-            [56, 189, 248, 90],
-            [125, 211, 252, 140],
-            [251, 191, 36, 180],
-            [249, 115, 22, 210],
-            [239, 68, 68, 235],
-          ],
-          pickable: false,
-        }),
+        heatmapOk
+          ? new HeatmapLayer<AnimTrip>({
+              id: "demand-heat",
+              data: trips.data,
+              getPosition: (trip) => trip.p[1],
+              getWeight: 1,
+              radiusPixels: 45,
+              intensity: 1,
+              threshold: 0.04,
+              colorRange: [
+                [56, 189, 248, 0],
+                [56, 189, 248, 90],
+                [125, 211, 252, 140],
+                [251, 191, 36, 180],
+                [249, 115, 22, 210],
+                [239, 68, 68, 235],
+              ],
+              pickable: false,
+            })
+          : new ScatterplotLayer<AnimTrip>({
+              id: "demand-heat-fallback",
+              data: trips.data,
+              getPosition: (trip) => trip.p[1],
+              getRadius: 260,
+              radiusUnits: "meters",
+              radiusMinPixels: 2,
+              radiusMaxPixels: 26,
+              stroked: false,
+              filled: true,
+              getFillColor: [249, 115, 22, 34],
+              pickable: false,
+            }),
       );
     }
 
@@ -1011,6 +1030,7 @@ export function AccessibilityDecisionScene({
     dongs.data,
     guGeo,
     guOfDong,
+    heatmapOk,
     infra.data,
     lens,
     profileByGu,
@@ -1226,7 +1246,9 @@ export function AccessibilityDecisionScene({
         <MapToolbar inline label={overlay === "heat" ? "히트맵" : "화살"}>
           <span className="text-[10px] text-dim">
             {overlay === "heat"
-              ? "완료 이동 12,000건 표본의 하차 밀도 — 밝을수록 도착이 몰림"
+              ? heatmapOk
+                ? "완료 이동 12,000건 표본의 하차 밀도 — 밝을수록 도착이 몰림"
+                : "완료 이동 12,000건 표본의 하차 지점 — 겹칠수록 도착이 몰림 (이 기기는 히트맵 미지원)"
               : "표본 상위 이동축 60개, 하늘색 출발 → 주황 도착"}
           </span>
         </MapToolbar>

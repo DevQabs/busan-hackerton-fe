@@ -7,6 +7,7 @@ import type { MapboxOverlayProps } from "@deck.gl/mapbox";
 import DeckGL from "@deck.gl/react";
 import { FlyToInterpolator } from "@deck.gl/core";
 import type { MapSpec } from "@/lib/mapspec";
+import { DECK_DEVICE_PROPS, reportGpuFailure } from "@/lib/webgl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const BASEMAP_STYLE =
@@ -20,10 +21,17 @@ export const INITIAL_VIEW = {
   bearing: 0,
 };
 
-/** deck.gl overlay mounted as a maplibre IControl (non-interleaved). */
+/** deck.gl overlay mounted as a maplibre IControl (non-interleaved).
+ *  deviceProps는 Deck 생성 시점에만 읽히므로 반드시 생성자 인자로 넘긴다. */
 function DeckOverlay(props: MapboxOverlayProps) {
   const overlay = useControl<MapboxOverlay>(
-    () => new MapboxOverlay({ ...props, interleaved: false }),
+    () =>
+      new MapboxOverlay({
+        ...props,
+        interleaved: false,
+        deviceProps: DECK_DEVICE_PROPS,
+        onError: reportGpuFailure,
+      }),
   );
   overlay.setProps(props);
   return null;
@@ -76,6 +84,8 @@ export function MapCanvas({
           layers={spec.layers}
           getTooltip={spec.getTooltip}
           getCursor={cursor ? () => cursor : undefined}
+          deviceProps={DECK_DEVICE_PROPS}
+          onError={reportGpuFailure}
         />
         <div className="pointer-events-none absolute bottom-2 right-2 rounded bg-panel/80 px-2 py-1 text-[10px] text-dim">
           베이스맵 오프라인 — 데이터 레이어만 표시 중
