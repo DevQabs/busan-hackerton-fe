@@ -199,3 +199,15 @@ by the recomputed versions (UI untouched).
   to 3 decimals (~100m cells) — no raw points for privacy.
 - `stats.json.purpose`: top-12 `목적` values, remainder rolled into
   `기타(그 외)`.
+- `travel_times.json`: median 승차→하차 minutes per (출발 행정동, 도착 행정동)
+  pair, computed from completed trips whose BOTH endpoints matched a dong and
+  whose ride duration is in (0, 4h]. Only pairs with ≥ 3 observed rides are
+  published (`TRAVEL_MIN_RIDES`), sorted by ride count and capped at 6,000
+  pairs (`TRAVEL_MAX_PAIRS`, `meta.pairsDropped` records the loss).
+  `meta.medianKmh` is the median 거리(km) ÷ ride-hours over all samples and is
+  what the UI uses to approximate unobserved pairs (straight line × 1.3 detour
+  ÷ that speed). This is NOT routing: there is no road network in this repo,
+  and a single citywide median ignores hour-of-day and day-of-week variation.
+  If the finals CSV lacks 출발지 좌표 or 하차, the pair list comes out empty and
+  `meta.status` is `unavailable` — the UI then falls back to straight-line
+  distance with no code change.

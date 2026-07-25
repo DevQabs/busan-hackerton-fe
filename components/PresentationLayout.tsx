@@ -29,6 +29,7 @@ export function PresentationLayout({
   kpis,
   toolbar,
   map,
+  legend,
   side,
   bottom,
   footnote,
@@ -42,6 +43,9 @@ export function PresentationLayout({
   /** Controls floating over the map's top-left (filters, toggles). */
   toolbar?: ReactNode;
   map: ReactNode;
+  /** Legend / read-only keys, pinned to the map's bottom-left so they never
+   *  push the interactive controls down. */
+  legend?: ReactNode;
   /** Right column: the single list or profile this step is about. */
   side: ReactNode;
   /** Full-width strip: the selected object + the recommended action. */
@@ -122,6 +126,11 @@ export function PresentationLayout({
               {toolbar}
             </div>
           )}
+          {legend && (
+            <div className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-col items-start gap-2">
+              {legend}
+            </div>
+          )}
         </section>
 
         <aside className="flex w-[360px] shrink-0 flex-col overflow-y-auto border-l border-line bg-bg p-3">
@@ -160,7 +169,7 @@ export function KpiTile({
 }) {
   return (
     <div
-      className={`rounded-lg border px-3.5 py-2.5 ${
+      className={`min-w-0 rounded-lg border px-3.5 py-2.5 ${
         active ? "border-accent/50 bg-accent/[0.06]" : "border-line bg-panel"
       }`}
     >
@@ -169,7 +178,10 @@ export function KpiTile({
         style={{ background: color ?? "var(--accent)" }}
       />
       <div className="truncate text-[11px] leading-4 text-dim">{label}</div>
-      <div className="tnum mt-0.5 truncate text-[20px] font-bold leading-7 text-ink">
+      <div
+        className="tnum mt-0.5 whitespace-nowrap text-[clamp(16px,1.5vw,20px)] font-bold leading-7 text-ink"
+        title={value}
+      >
         {value}
       </div>
       <div className="tnum truncate text-[10.5px] leading-4 text-dim">
@@ -182,11 +194,26 @@ export function KpiTile({
 /** Floating map control group (filter chips, toggles). */
 export function MapToolbar({
   label,
+  inline,
   children,
 }: {
   label?: string;
+  /** Label sits on the same row as the controls — saves a line per group. */
+  inline?: boolean;
   children: ReactNode;
 }) {
+  if (inline) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border border-line bg-panel/92 px-2.5 py-1.5 backdrop-blur">
+        {label && (
+          <span className="shrink-0 text-[10px] font-semibold leading-4 text-dim">
+            {label}
+          </span>
+        )}
+        <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-line bg-panel/92 px-2.5 py-2 backdrop-blur">
       {label && (

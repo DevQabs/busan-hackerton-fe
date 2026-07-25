@@ -2,8 +2,8 @@
 // datasets into a shared map instead of exposing the old scenes as navigation.
 
 export type PageId =
-  | "overview"
   | "flow"
+  | "accessibility-decision"
   | "infrastructure"
   | "blindspots"
   | "dispatch-analysis"
@@ -19,9 +19,9 @@ export interface PageDef {
 
 export const PAGES: PageDef[] = [
   {
-    id: "overview",
-    label: "개요",
-    caption: "두리발 운행 핵심 지표",
+    id: "accessibility-decision",
+    label: "접근성 진단",
+    caption: "충분한가·왜·무엇부터",
   },
   {
     id: "flow",

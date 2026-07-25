@@ -59,6 +59,10 @@ genuine but the NB exposure is a proxy — `model_results.json` has
 - Arrival deserts (`arrival_deserts.json`): 250m dropoff grid scored by infra
   shortage + 400m greedy coverage picks; `ghosts.json`: unserved-request
   points (~100m rounding).
+- Travel times (`travel_times.json`): median 승차→하차 minutes per 행정동 pair,
+  observed only — pairs with < 3 rides are dropped and the UI falls back to
+  straight line ÷ meta.medianKmh. NOT a routing model; no road network is used
+  anywhere in this repo. Absent artifact = the UI shows straight-line distance.
 
 HEURISTIC (kept deliberately, uncertainty quantified by the bootstrap):
 - `gapScore = z(dropoffs) − infraZ + 0.5·z(unassigned)` where
@@ -135,7 +139,8 @@ public/data/            ← 12 generated artifacts + busan_dongs_raw.geojson
   ├ wait_km.json        ← KM survival wait analysis + queue/fleet
   ├ ghosts.json         ← unserved-request points (미배차/취소)
   ├ arrival_deserts.json← 250m dropoff grid scoring + greedy picks
-  └ model_results.json  ← 4 rehearsal fits (NB / Welch t / χ² / bootstrap)
+  ├ model_results.json  ← 4 rehearsal fits (NB / Welch t / χ² / bootstrap)
+  └ travel_times.json   ← observed 행정동×행정동 ride times (승차→하차 medians)
 app/page.tsx            ← entry (ssr:false dynamic)
 components/Dashboard.tsx← shell: sidebar + either a composed page (map as slot)
                           or the legacy map / right-panel layout (COMPOSED set)

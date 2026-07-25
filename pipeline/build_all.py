@@ -229,6 +229,11 @@ def process_trips(dong_match):
     day_dong_drop = Counter()        # (date, admCd) → completed dropoffs
     day_dong_unassigned = Counter()  # (date, admCd) → unassigned pickups
 
+    # --- observed travel times (travel_times.json): (o_admCd, d_admCd) → samples ---
+    # 도로망 없이 "도로로 얼마나 걸리나"에 답하는 유일한 정직한 근거는
+    # 실제 두가자 운행 기록이다. 승차→하차 시간과 거리(km)를 쌍별로 모은다.
+    od_rides = defaultdict(list)  # (o, d) → [(sec, km), ...]
+
     # --- dispatch ETA (dispatch_eta.json): per (admCd, hour) accumulators ---
     dispatch_hour = defaultdict(lambda: [
         {'total': 0, 'unassigned': 0, 'cancelled': 0, 'waits': []} for _ in range(24)])
@@ -386,8 +391,18 @@ def process_trips(dong_match):
                     cell = (math.floor(d_xy[0] / 0.00275), math.floor(d_xy[1] / 0.00225))
                     dropoff_cells[cell] += 1
                 if o_feat is not None and d_feat is not None:
-                    od_counter[(o_feat['properties']['_admCd'],
-                                d_feat['properties']['_admCd'])] += 1
+                    o_cd = o_feat['properties']['_admCd']
+                    d_cd = d_feat['properties']['_admCd']
+                    od_counter[(o_cd, d_cd)] += 1
+                    # 관측된 주행시간: 승차→하차가 둘 다 있고 양수인 건만.
+                    if t_board and t_drop:
+                        sec = (t_drop - t_board).total_seconds()
+                        if 0 < sec <= 4 * 3600:
+                            try:
+                                km = float(row.get('거리(km)') or 0)
+                            except (TypeError, ValueError):
+                                km = 0.0
+                            od_rides[(o_cd, d_cd)].append((sec, km))
                 # animated trips: O + D coords inside Busan bbox, 승차 required
                 if o_xy and d_xy and t_board and in_bbox(*o_xy) and in_bbox(*d_xy):
                     depart = t_board.hour * 3600 + t_board.minute * 60 + t_board.second
@@ -399,7 +414,7 @@ def process_trips(dong_match):
                     if dur is None:
                         # fallback: 3 min per km, at least 5 min
                         try:
-                            km = float(row['거리(km)'])
+                            km = float(row.get('거리(km)') or 0)
                         except (TypeError, ValueError):
                             km = 0.0
                         dur = max(300.0, km * 180.0)
@@ -441,6 +456,7 @@ def process_trips(dong_match):
         'day_dong_drop': day_dong_drop, 'day_dong_unassigned': day_dong_unassigned,
         'type_purpose': type_purpose, 'retry_cell_times': retry_cell_times,
         'unmet_events': unmet_events,
+        'od_rides': od_rides,
         'dispatch_hour': dispatch_hour, 'dispatch_eta_ok': dispatch_eta_ok,
         'has_reserve_col': has_reserve_col, 'reserve_excluded': reserve_excluded,
     }
@@ -1025,6 +1041,61 @@ DISPATCH_ETA_RIDGE = 1e-6
 DISPATCH_ETA_SHRINK_K = 8.0      # James-Stein 축소 강도(고정값 — 그 자체의 불확실성은 CI에 미반영)
 
 
+# ---------------------------------------------------------------------------
+# 10b. Observed travel times (행정동×행정동 실측 주행시간) — travel_times.json
+# ---------------------------------------------------------------------------
+# 도로망 데이터도 라우팅 엔진도 없다. 대신 실제로 그 구간을 달린 두가자 운행의
+# 승차→하차 시간을 쌍별 중앙값으로 쓴다. 모델이 아니라 관측이다.
+# 관측이 없는 쌍은 UI가 직선거리 ÷ 관측 평균속도로 메운다.
+TRAVEL_MIN_RIDES = 3   # 중앙값을 쓰기 위한 최소 관측 수
+TRAVEL_MAX_PAIRS = 6000  # 아티팩트 크기 상한 — 관측 많은 쌍부터
+
+
+def build_travel_times(T):
+    rides = T.get('od_rides') or {}
+    pairs = []
+    speeds = []  # km/h — 거리(km)가 있는 건만
+    for (o_cd, d_cd), samples in rides.items():
+        secs = sorted(s for s, _ in samples)
+        kms = sorted(k for _, k in samples if k > 0)
+        for sec, km in samples:
+            if km > 0 and sec > 0:
+                speeds.append(km / (sec / 3600.0))
+        if len(samples) < TRAVEL_MIN_RIDES:
+            continue
+        pairs.append({
+            'o': o_cd,
+            'd': d_cd,
+            'n': len(samples),
+            'medianMin': round(percentile(secs, 0.5) / 60.0, 1),
+            'p90Min': round(percentile(secs, 0.9) / 60.0, 1),
+            'medianKm': round(percentile(kms, 0.5), 2) if kms else None,
+        })
+    pairs.sort(key=lambda p: (-p['n'], p['o'], p['d']))
+    dropped = max(0, len(pairs) - TRAVEL_MAX_PAIRS)
+    pairs = pairs[:TRAVEL_MAX_PAIRS]
+
+    speeds.sort()
+    median_kmh = round(percentile(speeds, 0.5), 1) if speeds else 0.0
+    covered = sum(p['n'] for p in pairs)
+    return {
+        'pairs': pairs,
+        'meta': {
+            'status': 'ok' if pairs else 'unavailable',
+            'method': (f'승차→하차 실측 중앙값, 관측 {TRAVEL_MIN_RIDES}건 이상인 '
+                       f'행정동 쌍만. 미관측 쌍은 직선거리 ÷ {median_kmh}km/h로 근사'),
+            'medianKmh': median_kmh,
+            'minRides': TRAVEL_MIN_RIDES,
+            'pairsObserved': len(rides),
+            'pairsPublished': len(pairs),
+            'pairsDropped': dropped,
+            'ridesCovered': covered,
+            'note': ('관측된 구간만 실측이며 나머지는 근사 — 시간대·요일별 변동은 '
+                     '반영하지 않은 단일 중앙값'),
+        },
+    }
+
+
 def _harmonic_basis(hour):
     a1 = 2.0 * math.pi * hour / 24.0
     return [1.0, math.sin(a1), math.cos(a1), math.sin(2 * a1), math.cos(2 * a1)]
@@ -1575,6 +1646,18 @@ def main():
     else:
         report(f"  unavailable: {dispatch_eta['meta']['note']}")
     dump_json('dispatch_eta.json', dispatch_eta)
+
+    # --- travel_times.json ---
+    report('=== travel times ===')
+    travel = build_travel_times(T)
+    tm = travel['meta']
+    if tm['status'] == 'ok':
+        report(f"  pairs: {tm['pairsPublished']:,} of {tm['pairsObserved']:,} observed "
+               f"(dropped {tm['pairsDropped']:,}) | rides {tm['ridesCovered']:,} "
+               f"| median speed {tm['medianKmh']} km/h")
+    else:
+        report('  unavailable: 관측된 행정동 쌍 없음')
+    dump_json('travel_times.json', travel)
 
     # --- ghosts.json ---
     ghosts = T['ghosts']

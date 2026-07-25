@@ -327,6 +327,7 @@ export const DATA = {
   ghosts: "/data/ghosts.json",
   waitKm: "/data/wait_km.json",
   dispatchEta: "/data/dispatch_eta.json",
+  travelTimes: "/data/travel_times.json",
   arrivalDeserts: "/data/arrival_deserts.json",
   accessActions: "/data/access_actions.json",
   unmet: "/data/unmet.json",
@@ -340,6 +341,34 @@ export const DATA = {
   disability: "/data/disability.json",
   haeundaeFacilities: "/data/haeundae_facilities.json",
 } as const;
+
+/** public/data/travel_times.json — observed 행정동×행정동 ride times.
+ *  Straight from completed 두가자 trips (승차→하차), NOT a routing model:
+ *  only pairs somebody actually drove are present, the rest degrade to
+ *  straight line / meta.medianKmh in the UI. Absent artifact = feature off. */
+export interface TravelPair {
+  o: string; // origin adm_cd2
+  d: string; // destination adm_cd2
+  n: number; // rides observed on this pair
+  medianMin: number;
+  p90Min: number;
+  medianKm: number | null;
+}
+
+export interface TravelTimes {
+  pairs: TravelPair[];
+  meta: {
+    status: "ok" | "unavailable";
+    method: string;
+    medianKmh: number;
+    minRides: number;
+    pairsObserved: number;
+    pairsPublished: number;
+    pairsDropped: number;
+    ridesCovered: number;
+    note: string;
+  };
+}
 
 /** public/data/unmet.json — unmet demand aggregated to ~100m cells (privacy: no raw points). */
 export interface UnmetCell {

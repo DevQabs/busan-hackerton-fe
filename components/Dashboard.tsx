@@ -5,7 +5,6 @@ import { PAGES, type PageId } from "@/lib/scenes";
 import { EMPTY_SPEC, type MapSpec } from "@/lib/mapspec";
 import { Sidebar } from "@/components/Sidebar";
 import { MapCanvas } from "@/components/MapCanvas";
-import { OverviewScene } from "@/components/scenes/OverviewScene";
 import { FlowScene } from "@/components/scenes/FlowScene";
 import { BlindspotsScene } from "@/components/scenes/BlindspotsScene";
 import { BlindspotsHaeundaeScene } from "@/components/scenes/BlindspotsHaeundaeScene";
@@ -13,11 +12,13 @@ import { InfrastructureScene } from "@/components/scenes/InfrastructureScene";
 import { DispatchScene } from "@/components/scenes/DispatchScene";
 import { StatisticsScene } from "@/components/scenes/StatisticsScene";
 import { DispatchEtaScene } from "@/components/scenes/DispatchEtaScene";
+import { AccessibilityDecisionScene } from "@/components/scenes/AccessibilityDecisionScene";
 
 /** Pages rebuilt as self-contained compositions own the whole content area
  *  (KPI band, map, side column, action strip) and receive the map as a slot.
  *  The remaining pages still use the legacy map + right-panel shell. */
 const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
+  "accessibility-decision",
   "infrastructure",
   "blindspots",
   "blindspots-hw",
@@ -26,7 +27,7 @@ const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
 ]);
 
 export default function Dashboard() {
-  const [page, setPage] = useState<PageId>("overview");
+  const [page, setPage] = useState<PageId>("accessibility-decision");
   const [mapSpec, setMapSpec] = useState<MapSpec>(EMPTY_SPEC);
 
   const onMapSpec = useCallback((spec: MapSpec) => setMapSpec(spec), []);
@@ -43,7 +44,6 @@ export default function Dashboard() {
 
   const legacyPanel: ReactNode = (
     <>
-      {page === "overview" && <OverviewScene onMapSpec={onMapSpec} />}
       {page === "flow" && <FlowScene onMapSpec={onMapSpec} />}
       {page === "dispatchEta" && <DispatchEtaScene onMapSpec={onMapSpec} />}
     </>
@@ -55,6 +55,9 @@ export default function Dashboard() {
 
       {composed ? (
         <main className="min-w-0 flex-1">
+          {page === "accessibility-decision" && (
+            <AccessibilityDecisionScene onMapSpec={onMapSpec} map={map} />
+          )}
           {page === "infrastructure" && (
             <InfrastructureScene onMapSpec={onMapSpec} map={map} />
           )}

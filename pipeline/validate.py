@@ -370,6 +370,33 @@ def main():
                       f'dispatch_eta n-weighted geometric-mean minutes ({gm:.1f}) within '
                       f'0.5-2x citywide waitMinutes.median ({med})')
 
+    # travel_times.json — 관측 기반이라 없을 수도 있다 (graceful degrade)
+    tt_path = os.path.join(OUT, 'travel_times.json')
+    if not os.path.exists(tt_path):
+        lines.append('  SKIP travel_times.json not generated')
+    else:
+        tt, tt_size = load('travel_times.json')
+        check(tt_size <= 1.5 * 1024 * 1024, 'travel_times.json <= 1.5MB')
+        tt_pairs = tt.get('pairs', [])
+        tt_meta = tt.get('meta', {})
+        if not tt_pairs:
+            check(tt_meta.get('status') != 'ok',
+                  'travel_times.json pairs empty — status must not be "ok"')
+            lines.append('  SKIP travel_times.json pairs empty (graceful degrade)')
+        else:
+            check(all(p['o'] in adm_cds and p['d'] in adm_cds for p in tt_pairs),
+                  'travel_times admCds all resolve to the 206 dongs')
+            check(all(p['n'] >= tt_meta.get('minRides', 3) for p in tt_pairs),
+                  'travel_times every pair meets the minimum ride count')
+            check(all(0 < p['medianMin'] <= 240 for p in tt_pairs),
+                  'travel_times medianMin within (0, 240]')
+            check(all(p['p90Min'] >= p['medianMin'] for p in tt_pairs),
+                  'travel_times p90 >= median for every pair')
+            check(len({(p['o'], p['d']) for p in tt_pairs}) == len(tt_pairs),
+                  'travel_times pairs unique')
+            check(0 < tt_meta.get('medianKmh', 0) <= 120,
+                  'travel_times fallback speed within (0, 120] km/h')
+
     print('\n'.join(lines))
     if errors:
         print(f'\nVALIDATION FAILED: {len(errors)} error(s)')
