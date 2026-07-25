@@ -40,7 +40,7 @@ import {
 } from "@/components/PresentationLayout";
 import { DataPending } from "@/components/ui/DataPending";
 
-type Step = "compare" | "profile" | "action";
+type Step = "compare" | "profile";
 type Basis = "balanced" | "population" | "trips";
 /** 두 층위를 한 지도에 섞지 않는다: 배분 비교는 구, 실제 도달 거리는 행정동. */
 type View = "gu" | "dong";
@@ -92,7 +92,6 @@ interface GuProfile extends GuBase {
 const STEPS: StoryStep[] = [
   { id: "compare", label: "16개 구·군 비교", caption: "인구와 이용 대비 공급" },
   { id: "profile", label: "선택 지역 해석", caption: "시설별 기대·실제" },
-  { id: "action", label: "부족 항목 확인", caption: "평균 수준 시나리오" },
 ];
 
 const FACILITY_KEYS: FacilityKey[] = [
@@ -154,6 +153,25 @@ const BASIS_LABEL: Record<Basis, string> = {
   balanced: "인구 50% + 이용 50%",
   population: "등록 인구만",
   trips: "완료 이용만",
+};
+
+/** 기준을 바꾸면 "필요"의 정의가 바뀐다 — 무엇이 달라지는지 화면에서 밝힌다. */
+const BASIS_MEANING: Record<Basis, { headline: string; detail: string }> = {
+  balanced: {
+    headline: "사는 사람과 실제로 오가는 사람을 같은 무게로",
+    detail:
+      "등록 인구 비중과 완료 이용 비중을 절반씩 섞습니다. 거주 기반 형평과 실제 통행량 어느 한쪽에도 치우치지 않는 기본값이며, 두 값이 크게 다른 지역에서는 중간값이 나옵니다.",
+  },
+  population: {
+    headline: "거주 형평 — 사는 사람 수만큼 시설이 있어야 한다",
+    detail:
+      "등록 장애인 비중만으로 기대량을 잡습니다. 이용이 적은 지역이 불리해지지 않아, 이동이 어려워 아예 호출을 못 하는 곳을 드러내는 데 유리합니다. 반대로 외부에서 사람이 몰려오는 목적지형 지역은 과소평가됩니다.",
+  },
+  trips: {
+    headline: "실수요 — 실제로 오간 만큼 시설이 있어야 한다",
+    detail:
+      "완료 이용 비중만으로 기대량을 잡습니다. 사람이 실제로 모이는 곳을 우선하게 되지만, 이용이 억눌린 지역은 필요 자체가 작게 잡히는 위험이 있습니다.",
+  },
 };
 
 /** 칩용 축약 — 전체 문구는 KPI 밴드가 계속 보여준다. */
@@ -1076,17 +1094,25 @@ export function AccessibilityDecisionScene({
   const selectedTrips = selected?.gu.trips ?? 0;
   const tripsPer1k =
     selectedRegistered > 0 ? (selectedTrips / selectedRegistered) * 1000 : 0;
+  /** 해운대구는 본선 데이터로 만든 동 단위 상세가 따로 있다. */
+  const drilldownReady = Boolean(
+    selected && selected.gu.gu === "해운대구" && onDrilldown,
+  );
   const kpis = (
     <div className="grid grid-cols-4 gap-2">
       <KpiTile
         label={selected ? `${selected.gu.gu} · 등록 장애인` : "등록 장애인"}
         value={`${fmt(selected ? selectedRegistered : cityRegistered)}명`}
         sub={
-          selected
-            ? `부산 ${fmt(cityRegistered)}명의 ${(selected.populationShare * 100).toFixed(1)}%`
-            : "16개 구·군 전체"
+          drilldownReady
+            ? "클릭 → 해운대 18개 동 상세 진단"
+            : selected
+              ? `부산 ${fmt(cityRegistered)}명의 ${(selected.populationShare * 100).toFixed(1)}%`
+              : "16개 구·군 전체"
         }
         color={HEX.demand}
+        active={drilldownReady}
+        onClick={drilldownReady ? onDrilldown : undefined}
       />
       <KpiTile
         label={selected ? `${selected.gu.gu} · 5월 완료 이용` : "5월 완료 이용"}
@@ -1419,95 +1445,53 @@ export function AccessibilityDecisionScene({
           </div>
         </section>
       </div>
-    ) : selectedWorst && selectedAction ? (
-      <div className="space-y-3">
-        <section className="rounded-lg border border-warn/35 bg-warn/[0.05] p-3.5">
-          <div className="text-[10px] font-bold text-warn">
-            3단계 · 가장 큰 상대 공백
-          </div>
-          <h2 className="mt-1.5 text-[17px] font-bold leading-6 text-ink">
-            {FACILITY_LABEL[selectedWorst.key]} ·{" "}
-            {ratioText(selectedWorst.ratio)}
-          </h2>
-          <p className="mt-2 text-[11px] leading-4 text-dim">
-            실제 {fmt(Math.round(selectedWorst.actual))}, 기대{" "}
-            {selectedWorst.expected.toFixed(
-              selectedWorst.expected >= 10 ? 0 : 1,
-            )}로 부산 평균 배분보다 약{" "}
-            {selectedWorst.shortfall.toFixed(
-              selectedWorst.shortfall >= 10 ? 0 : 1,
-            )}만큼 적습니다.
-          </p>
-        </section>
-        <section className="rounded-lg border border-line bg-panel p-3.5">
-          <div className="text-[10px] font-bold text-dim">
-            무엇이 얼마나 부족한가 · {deficits.length}개 항목
-          </div>
-          <div className="mt-2.5 space-y-2">
-            {deficits.map((metric) => {
-              const plan = actionFor(metric);
-              return (
-                <div
-                  key={metric.key}
-                  className="rounded-md border border-line bg-[#0e1424] px-2.5 py-2"
-                >
-                  <div className="flex items-baseline gap-2">
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: FACILITY_COLOR[metric.key] }}
-                    />
-                    <span className="text-[11.5px] font-bold text-ink">
-                      {FACILITY_LABEL[metric.key]}
-                    </span>
-                    <span
-                      className="tnum ml-auto text-[11px] font-bold"
-                      style={{
-                        color: metric.ratio < 0.75 ? HEX.gapHL : HEX.warn,
-                      }}
-                    >
-                      {ratioText(metric.ratio)}
-                    </span>
-                  </div>
-                  <div className="tnum mt-1 text-[10px] text-dim">
-                    실제 {fmt(Math.round(metric.actual))} · 기대{" "}
-                    {metric.expected.toFixed(metric.expected >= 10 ? 0 : 1)} ·
-                    차이{" "}
-                    {metric.shortfall.toFixed(metric.shortfall >= 10 ? 0 : 1)}
-                  </div>
-                  <div className="mt-1 text-[10px] leading-4 text-ink/80">
-                    {plan.action}
-                  </div>
-                  <div className="mt-0.5 text-[9.5px] text-dim">
-                    {plan.owner} · {plan.impact}
-                  </div>
-                </div>
-              );
-            })}
-            {deficits.length === 0 && (
-              <div className="text-[11px] text-dim">
-                선택한 기준에서는 평균 배분보다 낮은 항목이 없습니다.
-              </div>
-            )}
-          </div>
-        </section>
-        <div className="rounded-lg border border-line bg-panel px-3 py-2.5 text-[10.5px] leading-4 text-dim">
-          이 수량은 목표나 예산 확정값이 아닙니다. 부산의 현재 평균 배분까지
-          맞추는 비교 시나리오이며 위치·운영시간·실제 접근성은 다음 단계에서
-          검증해야 합니다.
-        </div>
-      </div>
     ) : null;
+
+  /** 칩만으로는 "기준을 바꾸면 무엇이 달라지나"가 안 보인다 — 문장으로 붙인다. */
+  const basisNote = (
+    <section className="rounded-lg border border-line bg-panel p-3">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[10px] font-bold text-dim">필요의 기준</span>
+        <span className="text-[11px] font-bold text-accent">
+          {BASIS_LABEL[basis]}
+        </span>
+      </div>
+      <div className="mt-1 text-[11.5px] font-bold leading-4 text-ink">
+        {BASIS_MEANING[basis].headline}
+      </div>
+      <p className="mt-1 text-[10.5px] leading-4 text-dim">
+        {BASIS_MEANING[basis].detail}
+      </p>
+      {selected && (
+        <div className="tnum mt-2 rounded-md bg-[#0e1424] px-2.5 py-2 text-[10px] leading-4 text-dim">
+          {selected.gu.gu} · 인구 기준{" "}
+          <span className="font-semibold text-demand">
+            {(selected.populationShare * 100).toFixed(1)}%
+          </span>{" "}
+          · 이용 기준{" "}
+          <span className="font-semibold text-accent">
+            {(selected.tripShare * 100).toFixed(1)}%
+          </span>{" "}
+          → 지금 적용{" "}
+          <span className="font-semibold text-ink">
+            {(selected.needShare * 100).toFixed(1)}%
+          </span>
+          {Math.abs(selected.populationShare - selected.tripShare) >= 0.01 &&
+            " — 두 기준의 차이가 커서 기준을 바꾸면 순위가 움직입니다"}
+        </div>
+      )}
+    </section>
+  );
 
   const side = (
     <div className="space-y-3">
       {viewNote}
+      {basisNote}
       {verdictCard}
       {sideBody}
     </div>
   );
 
-  const nextStep: Step =
-    step === "compare" ? "profile" : step === "profile" ? "action" : "action";
   const bottom =
     selected && selectedWorst && selectedAction ? (
       // 진단의 "왜"를 여기서 끝낸다 — 기대량의 근거, 양 축 전체 항목,
@@ -1599,38 +1583,39 @@ export function AccessibilityDecisionScene({
           </div>
         </div>
         <ActionCard
-          eyebrow={step === "action" ? "평균 수준 시나리오" : "다음 단계"}
-          action={
-            step === "compare"
-              ? `${selected.gu.gu}의 기대량 계산 보기`
-              : step === "profile"
-                ? "가장 큰 상대 공백을 행동으로 전환"
-                : selectedAction.action
+          eyebrow={
+            selected.gu.gu === "해운대구" ? "본선 상세 데이터" : "다음 단계"
           }
-          owner={step === "action" ? selectedAction.owner : undefined}
+          action={
+            selected.gu.gu === "해운대구"
+              ? "해운대구는 18개 동 단위 상세 진단으로 이어집니다"
+              : step === "compare"
+                ? `${selected.gu.gu}의 기대량 계산 보기`
+                : `${selected.gu.gu}의 부족 항목은 동 단위 상세에서 확인합니다`
+          }
           impact={
-            step === "action"
-              ? selectedAction.impact
+            selected.gu.gu === "해운대구"
+              ? "2025.3~2026.3 호출 43,891건 기준"
               : `${BASIS_LABEL[basis]} 기준`
           }
           cta={{
             label:
-              step === "compare"
-                ? "2단계로"
-                : step === "profile"
-                  ? "3단계로"
+              selected.gu.gu === "해운대구"
+                ? "해운대 상세 진단으로"
+                : step === "compare"
+                  ? "2단계로"
                   : "지도에서 다시 선택",
             onClick: () => {
-              if (step === "action") {
-                setStep("compare");
-                setFlyTo({
-                  longitude: 129.04,
-                  latitude: 35.18,
-                  zoom: 9.6,
-                });
+              if (selected.gu.gu === "해운대구" && onDrilldown) {
+                onDrilldown();
                 return;
               }
-              setStep(nextStep);
+              if (step === "profile") {
+                setStep("compare");
+                setFlyTo({ longitude: 129.04, latitude: 35.18, zoom: 9.6 });
+                return;
+              }
+              setStep("profile");
               setFlyTo({
                 longitude: selected.center[0],
                 latitude: selected.center[1],
@@ -1658,7 +1643,7 @@ export function AccessibilityDecisionScene({
 
   return (
     <PresentationLayout
-      question="등록 인구와 두리발 이용에 비해 생활 인프라는 어디가 적은가?"
+      question="등록 장애인 및 두리발 이용 대비 생활 인프라 현황"
       hint="16개 구·군의 필요 비중만큼 부산 전체 시설이 배분됐다고 가정한 비교 시나리오"
       steps={STEPS}
       activeStep={step}
@@ -1668,6 +1653,7 @@ export function AccessibilityDecisionScene({
       map={map}
       legend={legend}
       side={side}
+      sideWide
       bottom={bottom}
       footnote={
         <>

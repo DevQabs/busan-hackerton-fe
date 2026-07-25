@@ -78,8 +78,6 @@ interface ModeDef {
   direction: string;
   /** 실측 한 줄 인사이트 */
   insight: string;
-  /** 3막(통계·솔루션)으로 이어지는 다음 질문 */
-  solution: string;
 }
 
 const MODES: ModeDef[] = [
@@ -94,8 +92,6 @@ const MODES: ModeDef[] = [
     direction: "많을수록 = 교통약자가 많이 찾는 목적지",
     insight:
       "좌4동 7,358건 1위 — 그런데 이 동의 등록장애인은 677명뿐. 주민이 아니라 방문객이 몰리는 '목적지형' 동네입니다.",
-    solution:
-      "→ 3막: 수요 대비 시설이 모자란 동 우선순위 랭킹 — 목적지형 동네부터 정비.",
   },
   {
     key: "unmet",
@@ -108,8 +104,6 @@ const MODES: ModeDef[] = [
     direction: "높을수록 문제 = 서비스가 받아주지 못하는 동",
     insight:
       "재송2동 25.0% — 네 번에 한 번 실패. 이 동은 충전소도 0개, 등록장애인 수는 구 3위(1,166명)입니다.",
-    solution:
-      "→ 3막: 실패가 몰리는 시간대(21시 46%) 분석 — 증차보다 야간 배차 구조 재설계 검토.",
   },
   {
     key: "facMost",
@@ -122,8 +116,6 @@ const MODES: ModeDef[] = [
     direction: "많을수록 좋음",
     insight:
       "우2동 193개 최다 — 해운대 충전소 16개 중 6개가 이 한 동에 몰려 있습니다(편중).",
-    solution:
-      "→ 3막: 잘 갖춘 동을 기준선으로 — 다른 동이 무엇부터 채워야 하는지 비교.",
   },
   {
     key: "facLeast",
@@ -136,8 +128,6 @@ const MODES: ModeDef[] = [
     direction: "적을수록 문제",
     insight:
       "충전기가 0개인 동이 18개 중 9개(송정·반여2·3·4동 등) — 배치가 수요를 따라가지 못하고 있습니다.",
-    solution:
-      "→ 3막: '시설 1개 추가'의 기대효과(통계 모델) — 어느 동에 어떤 시설부터 지을지 순위화.",
   },
   {
     key: "gap",
@@ -151,8 +141,6 @@ const MODES: ModeDef[] = [
       "음수(−)일수록 문제 — 일반인은 가는데 교통약자는 못 가는 동. 양수(+)는 교통약자 특화 목적지",
     insight:
       "'못 가는 3인방' 우3동 −3.1 · 반여1동 −2.8 · 중2동 −2.5%p = 우선 투자 후보. 반대로 좌4동 +9.8%p는 특화 목적지인데 시설은 최하위권 — 이중 문제입니다.",
-    solution:
-      "→ 3막: 어떤 시설 항목을 개선하면 일반인 이용 패턴에 가장 가까워지는지 — 항목별 가중치 분석.",
   },
   {
     key: "deserts",
@@ -163,9 +151,7 @@ const MODES: ModeDef[] = [
       "완료 하차를 250m 격자로 묶고(개인 위치 보호), 반경 내 충전소·병의원·복지시설이 없는 정도를 하차량과 곱해 점수화한 '도착지 공백'입니다.",
     direction: "점수 높을수록 시급한 지점",
     insight:
-      "격자 산출물은 현재 5월 부산 전역 리허설 기준이라 해운대 셀이 아직 없습니다 — 본선 데이터 파이프라인 재생성 후 이 칩에 채워집니다.",
-    solution:
-      "→ 3막: 공백 점수 상위 격자에 신규 시설 후보 지점 제안(최대 커버 방식).",
+      "해운대 격자 24곳이 잡힙니다. 다만 이 산출물만 5월 리허설 기준이고 부족 판정도 충전소·병의원·복지시설 기준이라, 무장애가게 기준의 다른 칩과 잣대가 다릅니다.",
   },
   {
     key: "shops",
@@ -177,8 +163,6 @@ const MODES: ModeDef[] = [
     direction: "초록(완비)일수록 좋음 · 빨강 = 진입 불가",
     insight:
       "진입 가능 84% — 그러나 장애인화장실까지 갖춘 '완비'는 321곳 중 0곳. 내릴 수는 있어도, 머물 수는 없습니다.",
-    solution:
-      "→ 3막: 하차가 많은 가게부터 '끊긴 단계'를 고치는 조치 순위 — 조치당 영향 하차수로 정렬.",
   },
 ];
 
@@ -278,7 +262,7 @@ export function BlindspotsHaeundaeScene({
 
   const features = useMemo(() => dongs.data?.features ?? [], [dongs.data]);
   const cells = useMemo(() => deserts.data?.cells ?? [], [deserts.data]);
-  const greedy = useMemo(() => deserts.data?.greedy ?? [], [deserts.data]);
+  const greedyAll = useMemo(() => deserts.data?.greedy ?? [], [deserts.data]);
   const shops = useMemo(() => access.data?.shops ?? [], [access.data]);
   const drops = useMemo(() => access.data?.dropoffs ?? [], [access.data]);
   const sites = useMemo(() => tourism.data?.sites ?? [], [tourism.data]);
@@ -342,6 +326,24 @@ export function BlindspotsHaeundaeScene({
     () => cells.filter((c) => c.dong && hwDongSet.has(canonDong(c.dong))),
     [cells, hwDongSet],
   );
+  /** 후보 지점에는 동 정보가 없어 가장 가까운 행정동 중심으로 판정한다 —
+   *  구 밖 제안까지 그리면 해운대 화면에서 오독된다. */
+  const greedy = useMemo(() => {
+    if (features.length === 0) return greedyAll;
+    return greedyAll.filter((g) => {
+      let best = Number.POSITIVE_INFINITY;
+      let gu = "";
+      for (const f of features) {
+        const c = f.properties.centroid;
+        const d = haversineM([g.lng, g.lat], c);
+        if (d < best) {
+          best = d;
+          gu = f.properties.gu;
+        }
+      }
+      return gu === "해운대구";
+    });
+  }, [greedyAll, features]);
 
   // entering step 1: frame 해운대구 once
   useEffect(() => {
@@ -833,47 +835,113 @@ export function BlindspotsHaeundaeScene({
     onMapSpec({ layers, getTooltip, flyTo });
   }, [layers, getTooltip, flyTo, onMapSpec]);
 
+  /** 동을 고르면 KPI가 그 동의 값으로 바뀐다 — 구 전체 극단값은 부제로 남겨
+   *  "이 동이 어디쯤인가"를 잃지 않는다. */
+  const rankOf = useCallback(
+    (target: DongCompareEntry, key: MetricKey) => {
+      const asc = key === "gap";
+      const sorted = [...entries].sort((a, b) =>
+        asc
+          ? metricValue(a, key) - metricValue(b, key)
+          : metricValue(b, key) - metricValue(a, key),
+      );
+      return sorted.findIndex((e) => e.name === target.name) + 1;
+    },
+    [entries],
+  );
+
   // ── KPI band ────────────────────────────────────────────────────────────
   const kpis: ReactNode =
     isMetric ? (
-      <div className="grid grid-cols-4 gap-2">
-        <KpiTile
-          label="호출이 가장 많은 곳"
-          value={kpiTop ? kpiTop.calls.name : "—"}
-          sub={kpiTop ? `13개월 ${fmt(kpiTop.calls.calls)}건 · 도착 기준` : undefined}
-          color={HEX.demand}
-          active={metric === "calls"}
-        />
-        <KpiTile
-          label="배차 실패율이 가장 높은 곳"
-          value={kpiTop ? kpiTop.unmet.name : "—"}
-          sub={
-            kpiTop
-              ? `${(kpiTop.unmet.unmetRate * 100).toFixed(1)}% — 호출했지만 못 탐`
-              : undefined
-          }
-          color={HEX.unmet}
-          active={metric === "unmet"}
-        />
-        <KpiTile
-          label="충전소가 0개인 동"
-          value={kpiTop ? `${kpiTop.zeroCharger}개 동` : "—"}
-          sub="해운대 18개 동 중 · 급속충전기 기준"
-          color={HEX.warn}
-          active={metric === "facLeast"}
-        />
-        <KpiTile
-          label="일반인 대비 격차 최대"
-          value={kpiTop ? kpiTop.gap.name : "—"}
-          sub={
-            kpiTop
-              ? `${kpiTop.gap.gapPp.toFixed(1)}%p — 일반인은 가는데 못 간다`
-              : undefined
-          }
-          color={HEX.tourism}
-          active={metric === "gap"}
-        />
-      </div>
+      cmp ? (
+        <div className="grid grid-cols-4 gap-2">
+          <KpiTile
+            label={`${cmp.name} · 호출(도착 기준)`}
+            value={`${fmt(cmp.calls)}건`}
+            sub={
+              kpiTop
+                ? `18개 동 중 ${rankOf(cmp, "calls")}위 · 최다 ${kpiTop.calls.name} ${fmt(kpiTop.calls.calls)}건`
+                : undefined
+            }
+            color={HEX.demand}
+            active={metric === "calls"}
+          />
+          <KpiTile
+            label={`${cmp.name} · 배차 실패율`}
+            value={`${(cmp.unmetRate * 100).toFixed(1)}%`}
+            sub={
+              kpiTop
+                ? `18개 동 중 ${rankOf(cmp, "unmet")}위 · 최고 ${kpiTop.unmet.name} ${(kpiTop.unmet.unmetRate * 100).toFixed(1)}%`
+                : undefined
+            }
+            color={HEX.unmet}
+            active={metric === "unmet"}
+          />
+          <KpiTile
+            label={`${cmp.name} · 무장애시설`}
+            value={`${fmt(cmp.facTotal)}개`}
+            sub={`충전소 ${cmp.fac.charger}개 · 18개 동 중 시설 ${rankOf(cmp, "facMost")}위${
+              kpiTop ? ` · 충전소 0개인 동 ${kpiTop.zeroCharger}개` : ""
+            }`}
+            color={cmp.fac.charger === 0 ? HEX.gapHL : HEX.infra}
+            active={metric === "facMost" || metric === "facLeast"}
+          />
+          <KpiTile
+            label={`${cmp.name} · 일반인 대비 격차`}
+            value={`${cmp.gapPp > 0 ? "+" : ""}${cmp.gapPp.toFixed(1)}%p`}
+            sub={
+              cmp.gapPp < 0
+                ? `일반인은 가는데 교통약자는 못 가는 쪽${kpiTop ? ` · 최저 ${kpiTop.gap.name} ${kpiTop.gap.gapPp.toFixed(1)}%p` : ""}`
+                : "교통약자 특화 목적지 — 시설이 따라가는지 확인"
+            }
+            color={cmp.gapPp < 0 ? HEX.gapHL : HEX.tourism}
+            active={metric === "gap"}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-4 gap-2">
+          <KpiTile
+            label="호출이 가장 많은 곳"
+            value={kpiTop ? kpiTop.calls.name : "—"}
+            sub={
+              kpiTop
+                ? `13개월 ${fmt(kpiTop.calls.calls)}건 · 도착 기준`
+                : undefined
+            }
+            color={HEX.demand}
+            active={metric === "calls"}
+          />
+          <KpiTile
+            label="배차 실패율이 가장 높은 곳"
+            value={kpiTop ? kpiTop.unmet.name : "—"}
+            sub={
+              kpiTop
+                ? `${(kpiTop.unmet.unmetRate * 100).toFixed(1)}% — 호출했지만 못 탐`
+                : undefined
+            }
+            color={HEX.unmet}
+            active={metric === "unmet"}
+          />
+          <KpiTile
+            label="충전소가 0개인 동"
+            value={kpiTop ? `${kpiTop.zeroCharger}개 동` : "—"}
+            sub="해운대 18개 동 중 · 급속충전기 기준"
+            color={HEX.warn}
+            active={metric === "facLeast"}
+          />
+          <KpiTile
+            label="일반인 대비 격차 최대"
+            value={kpiTop ? kpiTop.gap.name : "—"}
+            sub={
+              kpiTop
+                ? `${kpiTop.gap.gapPp.toFixed(1)}%p — 일반인은 가는데 못 간다`
+                : undefined
+            }
+            color={HEX.tourism}
+            active={metric === "gap"}
+          />
+        </div>
+      )
     ) : mode === "deserts" ? (
       <div className="grid grid-cols-4 gap-2">
         <KpiTile
@@ -887,7 +955,7 @@ export function BlindspotsHaeundaeScene({
         <KpiTile
           label="1위 격자 하차"
           value={hwCells[0] ? `${fmt(hwCells[0].dropoffs)}건` : "—"}
-          sub={hwCells[0]?.dong ?? "본선 재생성 대기"}
+          sub={hwCells[0]?.dong ?? "해당 셀 없음"}
           color={HEX.gapHL}
         />
         <KpiTile
@@ -1033,9 +1101,6 @@ export function BlindspotsHaeundaeScene({
       <p className="mt-1.5 rounded bg-[#0e1424] px-2 py-1.5 text-[11px] leading-[1.5] text-ink/85">
         💡 {activeMode.insight}
       </p>
-      <p className="mt-1.5 text-[10.5px] leading-4 text-accent/90">
-        {activeMode.solution}
-      </p>
     </SidePanel>
   );
 
@@ -1163,7 +1228,7 @@ export function BlindspotsHaeundaeScene({
       !deserts.data ? (
         <DataPending note="arrival_deserts.json 대기 중 — 하차 250m 격자 공백이 표시됩니다." />
       ) : hwCells.length === 0 ? (
-        <DataPending note="현재 격자 산출물은 5월 부산 전역 리허설 기준이라 해운대 셀이 없습니다 — 본선 데이터로 파이프라인 재생성 시 이 칩이 채워집니다." />
+        <DataPending note="이 격자 산출물에는 해운대 셀이 없습니다 — 본선 데이터로 파이프라인을 재생성하면 채워집니다." />
       ) : (
         <SidePanel
           title="도착지 공백 순위"
@@ -1336,7 +1401,164 @@ export function BlindspotsHaeundaeScene({
   );
 
   // ── bottom strip: the selected object + the one recommended action ──────
-  const bottom: ReactNode =
+  /** 종합진단 — 칩을 다 눌러보지 않아도 결론이 남게 하단에 고정한다.
+   *  "부족 항목"은 2막 구 단위 로직을 동 단위로 옮긴 것: 기대량 = 해운대
+   *  시설 총량 × 그 동의 호출 비중, 실제가 그보다 적으면 부족으로 센다. */
+  const diagnosis = useMemo(() => {
+    if (entries.length === 0) return null;
+    const callsTotal = entries.reduce((sum, e) => sum + e.calls, 0) || 1;
+    const facTotal = {
+      restroom: entries.reduce((sum, e) => sum + e.fac.restroom, 0),
+      parking: entries.reduce((sum, e) => sum + e.fac.parking, 0),
+      charger: entries.reduce((sum, e) => sum + e.fac.charger, 0),
+      elevator: entries.reduce((sum, e) => sum + e.fac.elevator, 0),
+    };
+    const FAC_LABEL: Record<keyof typeof facTotal, string> = {
+      restroom: "장애인화장실",
+      parking: "장애인주차장",
+      charger: "휠체어충전소",
+      elevator: "장애인승강기",
+    };
+    const lacksOf = (e: DongCompareEntry) => {
+      const share = e.calls / callsTotal;
+      return (Object.keys(facTotal) as (keyof typeof facTotal)[])
+        .map((k) => {
+          const expected = facTotal[k] * share;
+          return {
+            key: k,
+            label: FAC_LABEL[k],
+            actual: e.fac[k],
+            expected,
+            ratio: expected > 0 ? e.fac[k] / expected : 1,
+          };
+        })
+        .filter((x) => x.ratio < 1)
+        .sort((a, b) => a.ratio - b.ratio);
+    };
+    const worstUnmet = [...entries].sort(
+      (a, b) => b.unmetRate - a.unmetRate,
+    )[0];
+    const zeroCharger = entries.filter((e) => e.fac.charger === 0);
+    const cannotGo = [...entries]
+      .filter((e) => e.gapPp < 0)
+      .sort((a, b) => a.gapPp - b.gapPp)
+      .slice(0, 3);
+    // 이중 문제 = 호출 상위 6개 동 중 부족 항목이 가장 많은 동
+    const busiest = [...entries].sort((a, b) => b.calls - a.calls).slice(0, 6);
+    const dual = busiest
+      .map((e) => ({ e, lacks: lacksOf(e) }))
+      .sort((a, b) => b.lacks.length - a.lacks.length)[0];
+    return { lacksOf, worstUnmet, zeroCharger, cannotGo, dual };
+  }, [entries]);
+
+  const summaryStrip: ReactNode = diagnosis ? (
+    <div className="rounded-lg border border-line bg-panel px-3 py-2.5">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-[11px] font-bold text-accent">종합진단</span>
+        <span className="text-[10px] text-dim">
+          해운대 18개 동 · 본선 2025.3~2026.3 · 도착 기준
+        </span>
+      </div>
+      <div className="mt-1.5 grid grid-cols-4 gap-2">
+        <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
+          <div className="text-[9.5px] text-dim">불러도 못 탄다</div>
+          <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
+            {diagnosis.worstUnmet.name}{" "}
+            {(diagnosis.worstUnmet.unmetRate * 100).toFixed(1)}%
+          </div>
+          <div className="mt-0.5 text-[9.5px] leading-[14px] text-dim">
+            구 전체{" "}
+            {compare.data
+              ? `${((compare.data.totals.unmet / compare.data.totals.calls) * 100).toFixed(1)}%`
+              : "—"}{" "}
+            · 호출 대비 미탑승
+          </div>
+        </div>
+        <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
+          <div className="text-[9.5px] text-dim">충전소가 아예 없다</div>
+          <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
+            18개 중 {diagnosis.zeroCharger.length}개 동
+          </div>
+          <div className="mt-0.5 truncate text-[9.5px] leading-[14px] text-dim">
+            {diagnosis.zeroCharger
+              .slice(0, 4)
+              .map((e) => e.name)
+              .join(" · ")}
+            {diagnosis.zeroCharger.length > 4 ? " 등" : ""}
+          </div>
+        </div>
+        <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
+          <div className="text-[9.5px] text-dim">일반인은 가는데 못 가는 곳</div>
+          <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
+            {diagnosis.cannotGo.map((e) => e.name).join(" · ")}
+          </div>
+          <div className="tnum mt-0.5 text-[9.5px] leading-[14px] text-dim">
+            {diagnosis.cannotGo.map((e) => e.gapPp.toFixed(1)).join(" / ")}%p ·
+            2022 이동 분포 대비
+          </div>
+        </div>
+        <div className="rounded-md border border-line bg-[#0e1424] px-2.5 py-1.5">
+          <div className="text-[9.5px] text-dim">내려도 머물 수 없다</div>
+          <div className="tnum mt-0.5 text-[11.5px] font-bold leading-4 text-ink">
+            진입 {shops.length ? Math.round((roll.enterable / shops.length) * 100) : 0}% · 완비{" "}
+            {fmt(roll.comfort)}곳
+          </div>
+          <div className="mt-0.5 text-[9.5px] leading-[14px] text-dim">
+            무장애가게 {fmt(shops.length)}곳 전수 실사 기준
+          </div>
+        </div>
+      </div>
+
+      {(() => {
+        const target = cmp ?? diagnosis.dual?.e ?? null;
+        if (!target) return null;
+        const lacks = diagnosis.lacksOf(target);
+        return (
+          <div className="mt-2 rounded-md border border-warn/30 bg-warn/[0.05] px-2.5 py-1.5">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-[10px] font-bold text-warn">
+                부족 항목 · {target.name}
+              </span>
+              <span className="text-[9.5px] text-dim">
+                호출 비중만큼 시설이 배분됐다면 기준 · {cmp ? "선택한 동" : "호출 상위 동 중 가장 심한 곳"}
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {lacks.length === 0 ? (
+                <span className="text-[10px] text-dim">
+                  호출 비중 대비 모자란 시설 항목이 없습니다.
+                </span>
+              ) : (
+                lacks.map((x) => (
+                  <span
+                    key={x.key}
+                    className="tnum rounded px-1.5 py-[1px] text-[9.5px] font-semibold leading-4"
+                    style={{
+                      background: `${x.ratio < 0.5 ? HEX.gapHL : HEX.warn}1f`,
+                      color: x.ratio < 0.5 ? HEX.gapHL : HEX.warn,
+                    }}
+                  >
+                    {x.label} {Math.round(x.ratio * 100)}% · 실제 {fmt(x.actual)}
+                    /기대 {x.expected.toFixed(x.expected >= 10 ? 0 : 1)}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 3막 연결은 주제마다 반복하지 않고 여기 한 줄로 모은다 — 발표 마무리도
+          이 줄을 가리킨다. */}
+      <div className="mt-2 border-t border-line pt-1.5 text-[10.5px] leading-4 text-accent/90">
+        → 3막(통계 대시보드): 어떤 시설을 어디에 먼저 채워야 이 격차가 줄어드는가
+        — 요인별 기여도를 가중치로 분리합니다. 이 화면은 문제의 위치를 특정하는
+        단계까지입니다.
+      </div>
+    </div>
+  ) : null;
+
+  const modeBottom: ReactNode =
     isMetric ? (
       cmp ? (
         <div className="flex items-stretch gap-3">
@@ -1538,6 +1760,13 @@ export function BlindspotsHaeundaeScene({
         })()}
       </div>
     );
+
+  const bottom: ReactNode = (
+    <div className="space-y-2">
+      {summaryStrip}
+      {modeBottom}
+    </div>
+  );
 
   const footnote: ReactNode =
     isMetric ? (

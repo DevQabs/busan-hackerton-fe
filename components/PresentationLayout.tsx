@@ -31,6 +31,7 @@ export function PresentationLayout({
   map,
   legend,
   side,
+  sideWide,
   bottom,
   footnote,
 }: {
@@ -48,6 +49,8 @@ export function PresentationLayout({
   legend?: ReactNode;
   /** Right column: the single list or profile this step is about. */
   side: ReactNode;
+  /** true = 지도:설명 ≈ 3:2 — 해석 텍스트가 지도만큼 중요한 화면용. */
+  sideWide?: boolean;
   /** Full-width strip: the selected object + the recommended action. */
   bottom?: ReactNode;
   footnote?: ReactNode;
@@ -133,7 +136,11 @@ export function PresentationLayout({
           )}
         </section>
 
-        <aside className="flex w-[360px] shrink-0 flex-col overflow-y-auto border-l border-line bg-bg p-3">
+        <aside
+          className={`flex shrink-0 flex-col overflow-y-auto border-l border-line bg-bg p-3 ${
+            sideWide ? "w-[40%] min-w-[380px]" : "w-[360px]"
+          }`}
+        >
           {side}
         </aside>
       </div>
@@ -160,18 +167,24 @@ export function KpiTile({
   sub,
   color,
   active,
+  onClick,
 }: {
   label: string;
   value: string;
   sub?: string;
   color?: string;
   active?: boolean;
+  /** 있으면 타일 전체가 버튼이 된다 — 드릴다운 진입점. */
+  onClick?: () => void;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div
-      className={`min-w-0 rounded-lg border px-3.5 py-2.5 ${
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={`min-w-0 rounded-lg border px-3.5 py-2.5 text-left ${
         active ? "border-accent/50 bg-accent/[0.06]" : "border-line bg-panel"
-      }`}
+      } ${onClick ? "w-full cursor-pointer transition hover:border-accent/60 hover:bg-accent/[0.1]" : ""}`}
     >
       <div
         className="mb-1.5 h-0.5 w-6 rounded-full"
@@ -187,7 +200,7 @@ export function KpiTile({
       <div className="tnum truncate text-[10.5px] leading-4 text-dim">
         {sub ?? " "}
       </div>
-    </div>
+    </Tag>
   );
 }
 
