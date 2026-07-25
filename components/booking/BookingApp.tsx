@@ -340,13 +340,15 @@ export default function BookingApp() {
     startStep(voiceStep);
   };
 
-  /** 길게 누르기 — 직전 단계를 다시 받는다. 오인식 복구용이고, 눈 없이 구별할 수 있는
-   *  두 번째이자 마지막 제스처다. 값을 미리 지우지 않는 것은 의도다: 인식이 성공하면
-   *  그대로 덮어쓰이고, 실패하면 원래 값이 남아 무대에서 빈 화면이 되지 않는다. */
-  const tapBack = () => {
-    const back = Math.max(0, voiceStep - 1);
-    setVoiceStep(back);
-    startStep(back);
+  /** 길게 누르기 — 출발지부터 처음부터 다시 받는다. 눈 없이 구별할 수 있는 두 번째이자
+   *  마지막 제스처이고, 새 경로를 다시 묻는 유일한 통로다. 값을 미리 지우지 않는 것은
+   *  의도다: 인식이 성공하면 그대로 덮어쓰이고, 실패하면 원래 값이 남아 무대에서 빈
+   *  화면이 되지 않는다. */
+  const tapRestart = () => {
+    setVoiceStep(0);
+    // "처음부터 다시 시작합니다"가 끝난 뒤에 마이크가 열려야 한다 — 겹치면 자기 TTS를
+    // 되받아 오인식하고, startStep이 내보내는 "출발지, 말씀하세요"도 잘린다.
+    announce("처음부터 다시 시작합니다.", () => startStep(0));
   };
 
   /** 음성으로 값이 확정되면 단계가 하나 오른다. 슬라이더나 목록 클릭으로 바꾼 경우에는
@@ -574,7 +576,7 @@ export default function BookingApp() {
         <VoiceTapLayer
           step={voiceStep}
           onAdvance={tapAdvance}
-          onBack={tapBack}
+          onRestart={tapRestart}
           onExit={() => {
             setVoiceMode(false);
             setVoiceStep(0);
@@ -731,8 +733,11 @@ export default function BookingApp() {
         </div>
       </main>
 
-      {/* 폰에서만 뜨는 페이지 이동 탭 — 이 화면은 별도 라우트라 사이드바가 없다. */}
-      <BottomTabBar activeHref="/booking" floating />
+      {/* 폰에서만 뜨는 페이지 이동 탭 — 이 화면은 별도 라우트라 사이드바가 없다.
+          음성 모드에서는 내린다: 탭 면(z-40)과 같은 층에 떠 있어서 화면 아래쪽을
+          누르면 단계가 진행되는 대신 페이지를 떠나 버린다. 모드에서 나가는 길은
+          z-50의 '음성인식 끄기' 하나로 충분하다. */}
+      {!voiceMode && <BottomTabBar activeHref="/booking" floating />}
     </div>
   );
 }
@@ -740,13 +745,14 @@ export default function BookingApp() {
 function VoiceTapLayer({
   step,
   onAdvance,
-  onBack,
+  onRestart,
   onExit,
 }: {
   /** 음성으로 채운 입력 개수 0..3 */
   step: number;
   onAdvance: () => void;
-  onBack: () => void;
+  /** 길게 누르기 — 출발지부터 처음부터 다시 받는다. */
+  onRestart: () => void;
   onExit: () => void;
 }) {
   const LABELS = ["출발지", "도착지", "탑승 시각"];
@@ -765,7 +771,7 @@ function VoiceTapLayer({
     clearTimer();
     timerRef.current = window.setTimeout(() => {
       longRef.current = true;
-      onBack();
+      onRestart();
     }, 600);
   };
 
@@ -803,10 +809,11 @@ function VoiceTapLayer({
         <MicIcon className="h-7 w-7 text-accent" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold">
-            {done ? "완료 — 누르면 다시 듣기" : "화면을 누르고 말하세요"}
+            {done ? "완료 — 짧게 누르면 다시 듣기" : "화면을 누르고 말하세요"}
           </p>
           <p className="tnum truncate text-[12px] text-accent">
-            {done ? "3 / 3" : `${step + 1} / 3 · ${LABELS[step]}`} · 길게 누르면 이전 단계
+            {done ? "3 / 3" : `${step + 1} / 3 · ${LABELS[step]}`} · 길게 누르면 처음부터
+            다시
           </p>
         </div>
       </div>
@@ -972,9 +979,21 @@ function TimeField({
     onAnnounce?.(line);
   }, [voice.error, picked, onAnnounce]);
 
-  const status = voice.listening
-    ? "탑승 시각, 말씀하세요."
-    : (voice.error ?? picked);
+  // 음성 모드를 끄면 열려 있던 마이크를 닫고, 음성에서 나온 문구도 함께 지운다 —
+  // 마이크가 사라진 화면에 "새로고침 후 다시 말씀해 주세요"만 남으면 지시가 붕 뜬다.
+  const toggleRef = useRef(voice.toggle);
+  toggleRef.current = voice.toggle;
+  useEffect(() => {
+    if (showMic) return;
+    if (voice.listening) toggleRef.current();
+    setPicked("");
+  }, [showMic, voice.listening]);
+
+  const status = !showMic
+    ? ""
+    : voice.listening
+      ? "탑승 시각, 말씀하세요."
+      : (voice.error ?? picked);
 
   return (
     <div>
@@ -1160,7 +1179,7 @@ function WaitCard({
 
           <dl className="mt-3 grid grid-cols-2 gap-2 text-[12px] lg:mt-2.5 lg:text-[11px]">
             <div className="rounded-xl border border-line px-3 py-2.5 lg:rounded-lg lg:px-2 lg:py-1.5">
-              <dt className="text-dim">미배차·취소 비율</dt>
+              <dt className="text-dim">미배차 가능성</dt>
               <dd className="tnum mt-1 text-[15px] text-ink lg:mt-0.5 lg:text-[11px]">
                 {(wait.unassignedShare * 100).toFixed(1)}%
               </dd>
@@ -1625,7 +1644,7 @@ function composeAnswer({
   } else {
     parts.push(`예상 대기시간은 약 ${Math.round(adjusted)}분입니다.`);
     parts.push(
-      `${wait.dongName} ${wait.hour}시 접수 기준이고, 미배차와 취소 비율은 ${Math.round(
+      `${wait.dongName} ${wait.hour}시 접수 기준이고, 미배차 가능성은 ${Math.round(
         wait.unassignedShare * 100,
       )}퍼센트입니다.`,
     );
@@ -1674,6 +1693,12 @@ function composeAnswer({
       `가장 가까운 곳은 ${nearest.shop.name}, ${spokenDistance(nearest.distanceM)}입니다.`,
     );
   }
+
+  // 4) 다음에 무엇을 할 수 있는지. 화면을 못 보는 사람에게 낭독이 끝난 정적은
+  //    "끝났다"가 아니라 "고장났다"로 읽힌다 — 두 제스처를 마지막에 다시 알려준다.
+  parts.push(
+    "다시 들으시려면 화면을 짧게 터치해 주세요. 새로운 경로로 입력하시려면 화면을 길게 눌러 주세요.",
+  );
 
   return { text: parts.join(" "), complete: true };
 }

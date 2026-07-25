@@ -96,6 +96,14 @@ export function PlaceInput({
   //    결과가 도착해 복창과 겹친다.
   //  · 확정 복창은 부모(BookingApp)가 말한다. "다음은 도착지" 같은 다음 단계 안내를
   //    붙이려면 단계 카운터를 아는 쪽이어야 하기 때문이다.
+  // 음성 모드를 끄는 순간 열려 있던 마이크도 닫는다 — 안 닫으면 화면에는 아무 표시가
+  // 없는데 브라우저는 계속 듣고 있고, 3초 뒤 무음 재시도까지 말한다.
+  const toggleRef = useRef(voice.toggle);
+  toggleRef.current = voice.toggle;
+  useEffect(() => {
+    if (!showMic && voice.listening) toggleRef.current();
+  }, [showMic, voice.listening]);
+
   const announcedRef = useRef("");
   useEffect(() => {
     // 마이크를 다시 열면 같은 오류를 또 말할 수 있어야 한다 — 3초 무음이 두 번 연속
@@ -213,9 +221,12 @@ export function PlaceInput({
   // 소리로 나가는 한 줄. 짧게 유지하는 것이 규격이다 —
   // "검색 중"은 여기 없다. 카카오 검색은 보통 300~600ms인데 그 문장(1.2초)을 말하는
   // 동안 이미 결과가 도착해 확정 복창과 겹치거나 복창을 밀어낸다. 화면에만 남긴다.
-  const status = voice.error
+  //
+  // 음성에서 나온 문구는 음성 모드가 꺼지면 함께 사라진다(showMic로 가른다) — 마이크가
+  // 없는 화면에 "새로고침 후 다시 말씀해 주세요"만 남으면 무엇을 하라는 말인지 알 수 없다.
+  const status = showMic && voice.error
     ? voice.error
-    : voice.listening
+    : showMic && voice.listening
       ? `${label}, 말씀하세요.`
       : err
         ? err
