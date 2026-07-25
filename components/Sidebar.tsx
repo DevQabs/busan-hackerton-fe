@@ -1,10 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { EXTERNAL_PAGES, PAGES, PAGE_SLUG, type PageId } from "@/lib/scenes";
+import { prefetchBookingRest } from "@/lib/prefetchBooking";
 
 // 두 곳에서 쓴다 (BottomTabBar와 같은 규칙):
 //  · 대시보드(/[page]) — onSelect가 오면 씬 전환 버튼이 된다(클라이언트 라우팅).
 //  · 배차(/booking) — 별도 라우트라 onSelect가 없고, 전부 주소 링크가 된다.
+//
+// 링크는 <a>가 아니라 next/link다. <a>는 문서를 통째로 다시 읽어서 번들
+// (maplibre·deck.gl)을 재파싱하고 useData의 모듈 캐시까지 버린다 — 이미 받은
+// dongs·infra_points를 다시 받게 된다. Link는 청크를 미리 가져오고 캐시를 살린다.
 export function Sidebar({
   page = null,
   onSelect,
@@ -33,44 +39,58 @@ export function Sidebar({
       <ol className="flex-1 overflow-y-auto px-2 py-2">
         {PAGES.map((item, i) => {
           const active = item.id === page;
-          // 대시보드 안에서는 버튼(씬 전환), 배차 라우트에서는 주소 링크.
-          const Tag = onSelect ? "button" : "a";
-          return (
-            <li key={item.id}>
-              <Tag
-                type={onSelect ? "button" : undefined}
-                href={onSelect ? undefined : `/${PAGE_SLUG[item.id]}`}
-                onClick={onSelect ? () => onSelect(item.id) : undefined}
-                aria-current={active ? "page" : undefined}
-                // cursor-pointer를 명시하는 이유: button은 기본 커서가 화살표라
-                // 링크인 4번 항목만 손가락이 뜨고 1~3번은 안 뜬다 — 같은 메뉴에서
-                // 어떤 줄은 눌리고 어떤 줄은 안 눌리는 것처럼 보인다.
-                className={`group mb-0.5 flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
-                  active ? "bg-[#1a2336]" : "hover:bg-[#161e30]"
+          // cursor-pointer를 명시하는 이유: button은 기본 커서가 화살표라
+          // 링크인 5번 항목만 손가락이 뜨고 1~4번은 안 뜬다 — 같은 메뉴에서
+          // 어떤 줄은 눌리고 어떤 줄은 안 눌리는 것처럼 보인다.
+          const cls = `group mb-0.5 flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
+            active ? "bg-[#1a2336]" : "hover:bg-[#161e30]"
+          }`;
+          const inner = (
+            <>
+              <span
+                className={`tnum mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px] font-semibold ${
+                  active
+                    ? "border-accent/60 bg-accent/10 text-accent"
+                    : "border-line text-dim"
                 }`}
               >
+                {i + 1}
+              </span>
+              <span className="min-w-0">
                 <span
-                  className={`tnum mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border text-[10px] font-semibold ${
-                    active
-                      ? "border-accent/60 bg-accent/10 text-accent"
-                      : "border-line text-dim"
+                  className={`block text-[13px] font-medium leading-5 ${
+                    active ? "text-ink" : "text-ink/80"
                   }`}
                 >
-                  {i + 1}
+                  {item.label}
                 </span>
-                <span className="min-w-0">
-                  <span
-                    className={`block text-[13px] font-medium leading-5 ${
-                      active ? "text-ink" : "text-ink/80"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                  <span className="block truncate text-[11px] leading-4 text-dim">
-                    {item.caption}
-                  </span>
+                <span className="block truncate text-[11px] leading-4 text-dim">
+                  {item.caption}
                 </span>
-              </Tag>
+              </span>
+            </>
+          );
+          return (
+            // 대시보드 안에서는 버튼(씬 전환), 배차 라우트에서는 주소 링크.
+            <li key={item.id}>
+              {onSelect ? (
+                <button
+                  type="button"
+                  onClick={() => onSelect(item.id)}
+                  aria-current={active ? "page" : undefined}
+                  className={cls}
+                >
+                  {inner}
+                </button>
+              ) : (
+                <Link
+                  href={`/${PAGE_SLUG[item.id]}`}
+                  aria-current={active ? "page" : undefined}
+                  className={cls}
+                >
+                  {inner}
+                </Link>
+              )}
             </li>
           );
         })}
@@ -81,10 +101,14 @@ export function Sidebar({
           const active = item.href === activeHref;
           return (
           <li key={item.href}>
-            <a
+            <Link
               href={item.href}
+              // 곧 누른다는 신호 — 무거운 artifact를 이때 받는다.
+              // 배경에서 미리 받으면 지금 보고 있는 지도가 끊긴다.
+              onPointerEnter={prefetchBookingRest}
+              onFocus={prefetchBookingRest}
               aria-current={active ? "page" : undefined}
-              className={`group mb-0.5 flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
+              className={`group mb-0.5 flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors ${
                 active ? "bg-[#1a2336]" : "hover:bg-[#161e30]"
               }`}
             >
@@ -109,7 +133,7 @@ export function Sidebar({
                   {item.caption}
                 </span>
               </span>
-            </a>
+            </Link>
           </li>
           );
         })}
