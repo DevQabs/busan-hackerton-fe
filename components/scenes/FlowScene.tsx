@@ -35,7 +35,7 @@ export function FlowScene({ onMapSpec }: { onMapSpec: (s: MapSpec) => void }) {
   const ghosts = useData<GhostPoint[]>(DATA.ghosts);
 
   const [playing, setPlaying] = useState(true);
-  const [speed, setSpeed] = useState<number>(120);
+  const [speed, setSpeed] = useState<number>(300);
   const [time, setTime] = useState(7 * 3600); // start the story at 07:00
   const [showGhosts, setShowGhosts] = useState(true);
   const [showEndpoints, setShowEndpoints] = useState(true);

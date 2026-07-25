@@ -27,7 +27,7 @@ const COMPOSED: ReadonlySet<PageId> = new Set<PageId>([
 ]);
 
 export default function Dashboard() {
-  const [page, setPage] = useState<PageId>("accessibility-decision");
+  const [page, setPage] = useState<PageId>("flow");
   const [mapSpec, setMapSpec] = useState<MapSpec>(EMPTY_SPEC);
 
   const onMapSpec = useCallback((spec: MapSpec) => setMapSpec(spec), []);

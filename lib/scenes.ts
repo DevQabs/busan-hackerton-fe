@@ -19,14 +19,14 @@ export interface PageDef {
 
 export const PAGES: PageDef[] = [
   {
-    id: "accessibility-decision",
-    label: "접근성 진단",
-    caption: "충분한가·왜·무엇부터",
-  },
-  {
     id: "flow",
     label: "하루의 흐름",
     caption: "시간대별 이동 애니메이션",
+  },
+  {
+    id: "accessibility-decision",
+    label: "접근성 진단",
+    caption: "충분한가·왜·무엇부터",
   },
   {
     id: "infrastructure",
