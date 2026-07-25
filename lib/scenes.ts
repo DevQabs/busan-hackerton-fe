@@ -29,6 +29,11 @@ export const PAGES: PageDef[] = [
     caption: "충분한가·왜·무엇부터",
   },
   {
+    id: "blindspots-hw",
+    label: "해운대 상세 진단",
+    caption: "본선 데이터 · 무엇을 비교할까 7칩",
+  },
+  {
     id: "infrastructure",
     label: "생활 인프라",
     caption: "시설·프로그램·장애유형 커버리지",
@@ -52,10 +57,5 @@ export const PAGES: PageDef[] = [
     id: "dispatchEta",
     label: "배차 예측 지도",
     caption: "동×시간대 예상 배차 대기시간",
-  },
-  {
-    id: "blindspots-hw",
-    label: "동하버전 — 해운대 진단",
-    caption: "문제 진단 · 무엇을 비교할까 7칩",
   },
 ];

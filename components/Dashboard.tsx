@@ -56,7 +56,11 @@ export default function Dashboard() {
       {composed ? (
         <main className="min-w-0 flex-1">
           {page === "accessibility-decision" && (
-            <AccessibilityDecisionScene onMapSpec={onMapSpec} map={map} />
+            <AccessibilityDecisionScene
+              onMapSpec={onMapSpec}
+              map={map}
+              onDrilldown={() => selectPage("blindspots-hw")}
+            />
           )}
           {page === "infrastructure" && (
             <InfrastructureScene onMapSpec={onMapSpec} map={map} />

@@ -359,9 +359,13 @@ function RatioBar({ metric }: { metric: FacilityMetric }) {
 export function AccessibilityDecisionScene({
   onMapSpec,
   map,
+  onDrilldown,
 }: {
   onMapSpec: (spec: MapSpec) => void;
   map: ReactNode;
+  /** 해운대구는 본선 데이터가 따로 있어 상세 페이지로 넘긴다 — 두 데이터를
+   *  한 화면에 섞지 않고 페이지 경계에서 갈아끼운다. */
+  onDrilldown?: () => void;
 }) {
   const dongs = useData<DongCollection<DongProps>>(DATA.dongs);
   const disability = useData<DisabilityData>(DATA.disability);
@@ -1294,6 +1298,21 @@ export function AccessibilityDecisionScene({
             </div>
           </div>
         </div>
+        {selected.gu.gu === "해운대구" && onDrilldown && (
+          <button
+            type="button"
+            onClick={onDrilldown}
+            className="mt-2 w-full rounded-md border border-accent/50 bg-accent/[0.08] px-2.5 py-2 text-left transition hover:bg-accent/[0.14]"
+          >
+            <div className="text-[11.5px] font-bold text-accent">
+              해운대구 상세보기 →
+            </div>
+            <div className="mt-0.5 text-[9.5px] leading-[14px] text-dim">
+              여기부터 본선 해운대 데이터 · 2025.3~2026.3 호출 43,891건 ·
+              동 단위 진단으로 전환됩니다
+            </div>
+          </button>
+        )}
       </section>
     ) : null;
 
