@@ -1234,6 +1234,13 @@ export function BlindspotsHaeundaeScene({
           title="도착지 공백 순위"
           aside={`행 클릭 = 확대 · ${deserts.data.params.cellM}m`}
         >
+          <p className="border-b border-line px-2.5 py-1.5 text-[10.5px] leading-4 text-dim">
+            지도의 노란 ①②③ = <b className="text-ink/80">후보 지점</b>:
+            아직 시설로 커버되지 않은 하차를 가장 많이 새로 커버하는 위치
+            순서입니다(①이 최대, 이미 커버된 하차는 다음 후보 계산에서
+            제외). 신규 시설의 우선 검토 지점이지, 부지 확보 검토가
+            아닙니다.
+          </p>
           <ul>
             {hwCells.slice(0, 40).map((c) => {
               const active = c.rank === cellRank;
@@ -1346,7 +1353,15 @@ export function BlindspotsHaeundaeScene({
           </div>
         </SidePanel>
 
-        <SidePanel title="고칠 곳 순위" aside="하차 규모순 · 클릭 = 지도">
+        <SidePanel
+          title="개선 우선순위 — 영향 큰 가게부터"
+          aside="클릭 = 지도 이동"
+        >
+          <p className="border-b border-line px-2.5 py-1.5 text-[10.5px] leading-4 text-dim">
+            아직 &apos;완비&apos;가 아닌 가게를, 고쳤을 때 혜택이 닿는 두리발
+            하차량(주변 400m 거리가중 합)이 큰 순서로 세웠습니다 — 같은 공사
+            하나라도 이용자가 많은 곳부터.
+          </p>
           <ul>
             {actions.slice(0, 10).map(({ shop: s, index, st }) => {
               const active = shopIdx === index;
@@ -1727,7 +1742,7 @@ export function BlindspotsHaeundaeScene({
             }
           />
         ) : (
-          <EmptyBlock text="지도의 점이나 오른쪽 '고칠 곳 순위'를 선택하면 그 가게의 12개 실사 항목과 조치가 여기 나타납니다." />
+          <EmptyBlock text="지도의 점이나 오른쪽 '개선 우선순위'를 선택하면 그 가게의 12개 실사 항목과 조치가 여기 나타납니다." />
         )}
         {(() => {
           const a = shopSt
