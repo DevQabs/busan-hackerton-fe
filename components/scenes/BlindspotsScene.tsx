@@ -4,10 +4,17 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { ArcLayer, GeoJsonLayer, ScatterplotLayer, TextLayer } from "deck.gl";
+import {
+  GeoJsonLayer,
+  PathLayer,
+  ScatterplotLayer,
+  TextLayer,
+  TripsLayer,
+} from "deck.gl";
 import type { Layer } from "@deck.gl/core";
 import {
   DATA,
@@ -73,6 +80,42 @@ const STEPS: StoryStep[] = [
 /** radius (m) around a selected desert cell that defines "이 도착지 안" */
 const ZONE_M = 1200;
 
+// ── animated flow geometry ──────────────────────────────────────────────────
+// Static green→cyan arcs did not say which end was which. Each OD pair becomes
+// a gently bowed polyline that a light runs along, 출발 → 도착, so direction is
+// read from the motion instead of from a color legend.
+const CURVE_STEPS = 18;
+const FLOW_TRAVEL = 1.2; // how long one light takes to cross its path
+const FLOW_LOOP = 2.6; // cycle length; phases spread inside it
+const FLOW_TRAIL = 0.34;
+const FLOW_SPEED = 0.42; // loop units per wall-clock second
+
+/** quadratic Bézier bowed perpendicular to the O→D chord. */
+function bowedPath(
+  o: [number, number],
+  d: [number, number],
+): [number, number][] {
+  const cx = (o[0] + d[0]) / 2 - (d[1] - o[1]) * 0.16;
+  const cy = (o[1] + d[1]) / 2 + (d[0] - o[0]) * 0.16;
+  const pts: [number, number][] = [];
+  for (let i = 0; i < CURVE_STEPS; i += 1) {
+    const t = i / (CURVE_STEPS - 1);
+    const u = 1 - t;
+    pts.push([
+      u * u * o[0] + 2 * u * t * cx + t * t * d[0],
+      u * u * o[1] + 2 * u * t * cy + t * t * d[1],
+    ]);
+  }
+  return pts;
+}
+
+interface FlowPath {
+  pair: OdPair;
+  path: [number, number][];
+  timestamps: number[];
+  width: number;
+}
+
 const GAP_LABEL: Record<DongProps["gapClass"], string> = {
   HL: "수요高·인프라低 (우선)",
   HH: "수요高·인프라高",
@@ -112,8 +155,33 @@ export function BlindspotsScene({
   const [showGreedy, setShowGreedy] = useState(true);
   const [showTourism, setShowTourism] = useState(true);
   const [showPriority, setShowPriority] = useState(true);
+  const [flowing, setFlowing] = useState(true);
+  const [flowTime, setFlowTime] = useState(0);
   const [flyTo, setFlyTo] = useState<FlyTo | null>(null);
   const [didFlyShops, setDidFlyShops] = useState(false);
+
+  // rAF clock for the flow animation — runs only while step ① is on screen.
+  const lastFrame = useRef<number | null>(null);
+  useEffect(() => {
+    if (step !== "flow" || !flowing) {
+      lastFrame.current = null;
+      return;
+    }
+    let raf = 0;
+    const tick = (now: number) => {
+      if (lastFrame.current !== null) {
+        const dt = (now - lastFrame.current) / 1000;
+        setFlowTime((t) => (t + dt * FLOW_SPEED) % FLOW_LOOP);
+      }
+      lastFrame.current = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      lastFrame.current = null;
+    };
+  }, [step, flowing]);
 
   const features = useMemo(() => dongs.data?.features ?? [], [dongs.data]);
   const cells = useMemo(() => deserts.data?.cells ?? [], [deserts.data]);
@@ -157,6 +225,46 @@ export function BlindspotsScene({
     () => (od.data ?? []).reduce((sum, p) => sum + p.count, 0),
     [od.data],
   );
+
+  /** one bowed polyline per visible flow, with a staggered travel window */
+  const flowPaths = useMemo<FlowPath[]>(
+    () =>
+      arcs.map((pair, i) => {
+        const phase = ((i * 0.3819) % 1) * (FLOW_LOOP - FLOW_TRAVEL);
+        const path = bowedPath(pair.o, pair.d);
+        return {
+          pair,
+          path,
+          timestamps: path.map(
+            (_pt, j) => phase + (j / (CURVE_STEPS - 1)) * FLOW_TRAVEL,
+          ),
+          width: Math.max(0.8, Math.sqrt(pair.count) * 0.55),
+        };
+      }),
+    [arcs],
+  );
+
+  /** 출발 / 도착 endpoints of the visible flows, aggregated per coordinate */
+  const endpoints = useMemo(() => {
+    const make = (
+      key: "o" | "d",
+      nameKey: "oName" | "dName",
+    ): { pos: [number, number]; name: string; count: number }[] => {
+      const acc = new Map<
+        string,
+        { pos: [number, number]; name: string; count: number }
+      >();
+      for (const pair of arcs) {
+        const pos = pair[key];
+        const id = `${pos[0].toFixed(4)},${pos[1].toFixed(4)}`;
+        const row = acc.get(id) ?? { pos, name: pair[nameKey], count: 0 };
+        row.count += pair.count;
+        acc.set(id, row);
+      }
+      return [...acc.values()];
+    };
+    return { origins: make("o", "oName"), dests: make("d", "dName") };
+  }, [arcs]);
 
   const topDest = useMemo(
     () =>
@@ -338,20 +446,69 @@ export function BlindspotsScene({
       }),
     );
 
-    if (step === "flow" && arcs.length > 0) {
+    if (step === "flow" && flowPaths.length > 0) {
+      // the route skeleton — always visible, carries the tooltip
       out.push(
-        new ArcLayer<OdPair>({
-          id: "bs-arcs",
-          data: arcs,
-          getSourcePosition: (d) => d.o,
-          getTargetPosition: (d) => d.d,
-          getSourceColor: [52, 211, 153, 200], // 출발 — infra green
-          getTargetColor: [34, 211, 238, 210], // 도착 — accent cyan
-          getWidth: (d) => Math.max(0.8, Math.sqrt(d.count) * 0.55),
+        new PathLayer<FlowPath>({
+          id: "bs-flow-paths",
+          data: flowPaths,
+          getPath: (d) => d.path,
+          getColor: flowDong ? [56, 189, 248, 120] : [56, 189, 248, 55],
+          getWidth: (d) => d.width,
           widthUnits: "pixels",
-          getHeight: 0.3,
+          widthMinPixels: 1,
+          capRounded: true,
+          jointRounded: true,
           pickable: true,
-          opacity: flowDong ? 0.95 : 0.4,
+          updateTriggers: { getColor: [flowDong] },
+        }),
+        // the moving light: head at 도착 side, tail toward 출발
+        new TripsLayer<FlowPath>({
+          id: "bs-flow-lights",
+          data: flowPaths,
+          getPath: (d) => d.path,
+          getTimestamps: (d) => d.timestamps,
+          getColor: [34, 211, 238],
+          getWidth: (d) => Math.max(1.6, d.width * 1.4),
+          widthUnits: "pixels",
+          widthMinPixels: 2,
+          currentTime: flowTime,
+          trailLength: FLOW_TRAIL,
+          fadeTrail: true,
+          capRounded: true,
+          jointRounded: true,
+          opacity: 0.95,
+        }),
+        // 출발: green rings the light leaves · 도착: cyan discs it arrives at
+        new ScatterplotLayer<(typeof endpoints.origins)[number]>({
+          id: "bs-flow-origins",
+          data: endpoints.origins,
+          getPosition: (d) => d.pos,
+          getRadius: (d) => 130 + Math.sqrt(d.count) * 26,
+          radiusUnits: "meters",
+          radiusMinPixels: 3,
+          radiusMaxPixels: 13,
+          filled: false,
+          stroked: true,
+          getLineColor: [52, 211, 153, 225],
+          getLineWidth: 1.6,
+          lineWidthUnits: "pixels",
+          pickable: true,
+        }),
+        new ScatterplotLayer<(typeof endpoints.dests)[number]>({
+          id: "bs-flow-dests",
+          data: endpoints.dests,
+          getPosition: (d) => d.pos,
+          getRadius: (d) => 130 + Math.sqrt(d.count) * 26,
+          radiusUnits: "meters",
+          radiusMinPixels: 3,
+          radiusMaxPixels: 14,
+          getFillColor: [34, 211, 238, 190],
+          stroked: true,
+          getLineColor: [11, 15, 26, 220],
+          getLineWidth: 1,
+          lineWidthUnits: "pixels",
+          pickable: true,
         }),
       );
     }
@@ -529,7 +686,9 @@ export function BlindspotsScene({
     step,
     showPriority,
     flowSelected,
-    arcs,
+    flowPaths,
+    endpoints,
+    flowTime,
     flowDong,
     cells,
     cell,
@@ -552,10 +711,19 @@ export function BlindspotsScene({
       if (!o) return null;
       const id = info.layer?.id;
 
-      if (id === "bs-arcs") {
-        const p = o as unknown as OdPair;
+      if (id === "bs-flow-paths") {
+        const p = (o as unknown as FlowPath).pair;
         return tooltipHtml(
-          `<b>${shortDong(p.oName)} → ${shortDong(p.dName)}</b> · ${fmt(p.count)}건`,
+          `<b>${shortDong(p.oName)} → ${shortDong(p.dName)}</b> · ${fmt(p.count)}건<br/>` +
+            `<span style="color:#8b96ab">${p.oName} → ${p.dName}</span>`,
+        );
+      }
+      if (id === "bs-flow-origins" || id === "bs-flow-dests") {
+        const e = o as unknown as { name: string; count: number };
+        const isOrigin = id === "bs-flow-origins";
+        return tooltipHtml(
+          `<b>${e.name}</b><br/><span style="color:${isOrigin ? HEX.infra : HEX.accent}">` +
+            `${isOrigin ? "출발" : "도착"} ${fmt(e.count)}건</span>`,
         );
       }
       if (id === "bs-dongs") {
@@ -718,12 +886,27 @@ export function BlindspotsScene({
   // ── map toolbar ─────────────────────────────────────────────────────────
   const toolbar: ReactNode =
     step === "flow" ? (
-      <MapToolbar label="이동 흐름">
+      <MapToolbar label="이동 흐름 — 빛이 흐르는 쪽이 도착지">
         <span className="flex items-center gap-1.5 text-[11px] text-ink">
-          <span className="h-2 w-2 rounded-full bg-infra" /> 출발
-          <span className="text-dim">→</span>
-          <span className="h-2 w-2 rounded-full bg-accent" /> 도착
+          <span
+            className="h-2.5 w-2.5 rounded-full border-[1.5px]"
+            style={{ borderColor: HEX.infra }}
+          />
+          출발
+          <span className="text-dim">›››</span>
+          <span
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: HEX.accent }}
+          />
+          도착
         </span>
+        <Chip
+          active={flowing}
+          onClick={() => setFlowing((v) => !v)}
+          color={HEX.accent}
+        >
+          흐름 재생 {flowing ? "ON" : "OFF"}
+        </Chip>
         <Chip
           active={showPriority}
           onClick={() => setShowPriority((v) => !v)}
